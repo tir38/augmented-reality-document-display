@@ -2,4 +2,4 @@ Makefile~
 *.autosave
 dev*
 .gitignore~
-
+ARdev*

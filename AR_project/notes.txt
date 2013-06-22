@@ -1,0 +1,19 @@
+ Getting Started
+-------------------
+Absolute idiot's guide to installing OpenCV on Ubuntu 12.04:
+
+    http://www.samontab.com/web/2012/06/installing-opencv-2-4-1-ubuntu-12-04-lts/
+
+
+To Do (ideas):
+-----------------
+1. consider detecting all cameras and picking the "right" one:
+    http://stackoverflow.com/questions/9645784/opencv-counting-cameras
+2. setup coroutines or task scheduler so that I can run multiple tasks simultaneously at different frequencies
+
+
+Notes:
+-----------
+1. Note about timing:
+    The timing of different methods is a bit wonky. Each method has its own "frequency" which is how often that method
+    is called. main() is running at 100 Hz. So a method with a frequency of 10 Hz would run every 100/10 = 10 cycles.
