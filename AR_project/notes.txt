@@ -11,6 +11,7 @@ To Do (ideas):
     http://stackoverflow.com/questions/9645784/opencv-counting-cameras
 2. setup coroutines or task scheduler so that I can run multiple tasks simultaneously at different frequencies
 3. make myDeviceID a global variable
+4. use erosion/dilation to remove any test on page when doing blob tracking
 
 Notes:
 -----------

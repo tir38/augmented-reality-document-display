@@ -2,6 +2,7 @@
 # include "mainAR.h"
 # include <vector>
 # include <stdio.h>
+# include "math.h" // for arctan
 using namespace cv;
 
 int main (){
@@ -116,30 +117,73 @@ bool trackObject(IplImage*& myImage){
     cvMoments(thresholdImage, momentsOfThreshold, 1);
 
     // pull pertiment moments from all moments
-    double moment10 = cvGetSpatialMoment(momentsOfThreshold, 1, 0); //
-    double moment01 = cvGetSpatialMoment(momentsOfThreshold, 0, 1); //
-    double moment00 = cvGetCentralMoment(momentsOfThreshold, 0, 0); // area
+    double moment10 = cvGetSpatialMoment(momentsOfThreshold, 1, 0); // first moment (X)
+    double moment01 = cvGetSpatialMoment(momentsOfThreshold, 0, 1); // second moment (Y)
+    double moment00 = cvGetCentralMoment(momentsOfThreshold, 0, 0); // zero moment (i.e. area)
+    double moment11 = cvGetCentralMoment(momentsOfThreshold, 1, 1); // first cross moment (XY)
+    double moment20 = cvGetCentralMoment(momentsOfThreshold, 2, 0); // second moment (X^2)
+    double moment02 = cvGetCentralMoment(momentsOfThreshold, 0, 2); // second moment (Y^2)
+
+    // think about adding conditional such that area > someArea or else break
 
     // compute centroid (xBar, yBar) from moments
-    double xBar = moment10 / moment00;
-    double yBar = moment01 / moment00;
-    int xBari = (int)xBar;
-    int yBari = (int)yBar;
+    int xBar = (int)moment10 / moment00; // typecast to int
+    int yBar = (int)moment01 / moment00; // typecast to int
 
-    // compute orientation from moments
+    // compute orientation from moments (see reference paper)
+    double mu20 = (moment20 / moment00) - ((moment10 * moment10) / (moment00));
+    double mu02 = (moment02 / moment00) - ((moment01 * moment01) / (moment00));
+    double mu11 = (moment11 / moment00) - ((moment10 * moment01) / (moment00));
+    double theta = 0.5 * atan((2 * mu11) / (mu20 - mu02)); // radians
 
+    std::cout << "theta = " << theta << "\n";
 
     // create image to hold overlay drawing
     IplImage* overlayImage = cvCreateImage(cvGetSize(myImage), myImage->depth, 3);
 
-    // draw + shape at centroid
-    if ((xBari > 50) && (xBari < 550) && (yBari > 50) && (yBari<430)){
-        cvLine(overlayImage, cvPoint(xBari-50, yBari), cvPoint(xBari+50, yBari), cvScalar(0,0,255), 5); // horizontal line
-        cvLine(overlayImage, cvPoint(xBari, yBari-50), cvPoint(xBari, yBari+50), cvScalar(0,0,255), 5); // vertical line*/
+//    // draw + shape at centroid
+//    // compute points; "top", "bottom", "left", and "right" are just semantic names given to four points
+//    // do geometric calc and typecast to int all inline (yeah its ugly, i know)
+//    CvPoint topPoint    = cvPoint(((int)(xBar+120*sin(theta))),         ((int)(yBar+120*cos(theta))));
+//    CvPoint bottomPoint = cvPoint(((int)(xBar-120*sin(theta))),         ((int)(yBar-120*cos(theta))));
+//    CvPoint leftPoint   = cvPoint(((int)(xBar- 80*sin(theta-1.57))),    ((int)(yBar- 80*cos(theta-1.57))));
+//    CvPoint rightPoint  = cvPoint(((int)(xBar+ 80*sin(theta-1.57))),    ((int)(yBar+ 80*cos(theta-1.57))));
 
-        // combine my image with overlay image
-        cvAdd(myImage, overlayImage, myImage);
-    }
+//    if ((topPoint.x > 0)    && (topPoint.x < 600)       && (topPoint.y > 0)     && (topPoint.y<480)   // basically check that every point is within 640 x 480 window
+//    && (bottomPoint.x > 0)  && (bottomPoint.x < 600)    && (bottomPoint.y > 0)  && (bottomPoint.y<480)
+//    && (leftPoint.x > 0)    && (leftPoint.x < 600)      && (leftPoint.y > 0)    && (leftPoint.y<480)
+//    && (rightPoint.x > 0)   && (rightPoint.x < 600)     && (rightPoint.y > 0)   && (rightPoint.y<480)){
+
+//        // draw two lines
+//        cvLine(overlayImage, topPoint, bottomPoint, cvScalar(0,0,255), 5); // horizontal line
+//        cvLine(overlayImage, leftPoint, rightPoint, cvScalar(0,0,255), 5); // vertical line*/
+
+//        // combine myImage with overlay image
+//        cvAdd(myImage, overlayImage, myImage);
+//    }
+
+
+    // compute contours and draw them
+        // When computing contours input image will be overwritten;
+        // So to preserve threshold, create copy called contourImage
+    IplImage* contourImage = cvCreateImage(cvGetSize(myImage), myImage->depth, 1);
+    cvCopy(thresholdImage, contourImage);
+
+    // generate structures for finding contours
+    CvMemStorage* myStorage = cvCreateMemStorage();
+    CvSeq* pointerToContours = NULL; // sequence
+
+    // do find contours
+    cvFindContours(contourImage,
+                   myStorage,
+                   &pointerToContours,
+                   sizeof(CvContour),
+                   CV_RETR_LIST);
+
+    // draw the contours on myImage
+    cvDrawContours(myImage, pointerToContours, cvScalar(0,0,255), cvScalar(0,0,255), 2, 2, 8);
+//    cvAdd(thresholdImage, overlayL1Image, thresholdImage);     // combine myImage with overlay image
+
 
     // temp display results
     cvShowImage("testWindow1", thresholdImage );   // show the image
