@@ -10,7 +10,7 @@ To Do (ideas):
 1. consider detecting all cameras and picking the "right" one:
     http://stackoverflow.com/questions/9645784/opencv-counting-cameras
 2. setup coroutines or task scheduler so that I can run multiple tasks simultaneously at different frequencies
-
+3. make myDeviceID a global variable
 
 Notes:
 -----------

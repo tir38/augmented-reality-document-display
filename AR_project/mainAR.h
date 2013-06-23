@@ -15,6 +15,7 @@
 
 int main();
 bool setupWebcam(CvCapture*& myCapture);
-bool displayFrame(CvCapture*& myCapture);
+bool displayFrame(IplImage*& myImage);
+bool trackObject(IplImage*& myImage);
 
 #endif // MAINAR_H
