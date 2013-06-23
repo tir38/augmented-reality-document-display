@@ -18,7 +18,7 @@ using namespace cv;
 int main();
 VideoCapture setupWebcam();
 bool displayFrame(Mat image);
-bool trackObject(Mat myImage);
+bool trackObject(Mat myImage, int cannyThresh, int cannyThresh2);
 Mat computeCentroidAndOrientation(Mat inputImage);
 std::vector< std::vector< Point> > computeContours(Mat myImage);
 

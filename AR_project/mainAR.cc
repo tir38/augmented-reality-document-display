@@ -29,6 +29,11 @@ int main (){
     namedWindow("testWindow1", CV_WINDOW_AUTOSIZE);
     moveWindow("testWindow1", 800, 10);
 
+    int cannyThres1;
+    int cannyThresh2;
+    createTrackbar("Canny Low", "testWindow1", &cannyThres1, 100);
+    createTrackbar("Canny High", "testWindow1", &cannyThresh2, 100);;
+
 
     // ====================== MAIN LOOP ==========================
     while(true){
@@ -39,7 +44,7 @@ int main (){
 
         // do frame processing
         if(counter % trackPeriod == 0){
-            if(!trackObject(myImage)){
+            if(!trackObject(myImage, cannyThres1, cannyThresh2)){
                 std::cout << "===== ERROR: trackObject failed\n";
             }
         }
@@ -99,52 +104,83 @@ bool displayFrame(Mat image){
     input: reference to pointer to IplImage
     returns: true if successful
 **/
-bool trackObject(Mat myImage){
+bool trackObject(Mat myImage, int cannyThresh1, int cannyThresh2){
     // create copy of myImage and convert to HSV space
     Mat hsvImage;
     hsvImage.create(myImage.rows, myImage.cols, myImage.type());
     cvtColor(myImage, hsvImage, CV_BGR2HSV, 0); // convert from BGR to HSV, keep same number of channels (0)
 
-    // create image to hold threshold
-    Mat thresholdImage;
-    thresholdImage.create(myImage.rows, myImage.cols, CV_8U); // force to be 8bit unsigned, single channel
+//    // do thresholding
+//    Mat thresholdImage;
+//    thresholdImage.create(myImage.rows, myImage.cols, CV_8U); // force to be 8bit unsigned, single channel
+//    Scalar lowerBound(0,   0,      200); // hue, saturation, intensity
+//    Scalar upperBound(255, 255,    255);
+//    inRange(hsvImage, lowerBound, upperBound, thresholdImage);
 
-    // do thresholding
-    Scalar lowerBound(0,   0,      200); // hue, saturation, intensity
-    Scalar upperBound(255, 255,    255);
-    inRange(hsvImage, lowerBound, upperBound, thresholdImage);
+//    // do closing
+//    Mat closedImage;
+//    closedImage.create(myImage.rows, myImage.cols, CV_8U);                      // force to be 8bit unsigned, single channel
+//    Size size(2,2);                                                             // create kernel
+//    Mat closingKernel = getStructuringElement(MORPH_RECT, size, Point(-1,-1));
+//    int closingIterations = 3;
+//    morphologyEx(thresholdImage, closedImage, MORPH_CLOSE, closingKernel, Point(-1,-1), closingIterations, BORDER_CONSTANT, morphologyDefaultBorderValue()); // basically use default parameters
 
-    // do closing
-    Mat closedImage;
-    closedImage.create(myImage.rows, myImage.cols, CV_8U);                      // force to be 8bit unsigned, single channel
-    Size size(3,3);                                                             // create kernel
-    Mat closingKernel = getStructuringElement(MORPH_RECT, size, Point(-1,-1));
-    int closingIterations = 2;
-    morphologyEx(thresholdImage, closedImage, MORPH_CLOSE, closingKernel, Point(-1,-1), closingIterations, BORDER_CONSTANT, morphologyDefaultBorderValue()); // basically use default parameters
+//    // compute centroid and blob orientation and draw
+//    Mat centroidImage = computeCentroidAndOrientation(closedImage);     // compute centroid and orientation
+//    myImage = centroidImage + myImage;                                  // merge images
 
-    // compute centroid and blob orientation and draw
-    Mat centroidImage = computeCentroidAndOrientation(closedImage);     // compute centroid and orientation
-    myImage = centroidImage + myImage;                                  // merge images
+//    // compute contours
+//    std::vector< std::vector< Point> > contours = computeContours(closedImage); // update myImage
+//    std::cout << "there are some contours :"  << contours.size() << "\n";
 
-    // compute contours
-    std::vector< std::vector< Point> > contours = computeContours(closedImage); // update myImage
-    drawContours(myImage, contours, -1, Scalar(0,0,255), 2, 8); // draw all contours (-1), red, linethickness =2, 8bit
+//    // draw contours
+//    for (int i = 0; i < contours.size(); i++){
+//        std::vector<Point> singleContour = contours[i];                     // get single contour
+//        Scalar randomColor = Scalar(rand()&255, rand()&255, rand()&255);    // generate random colro
+//        drawContours(myImage, contours, i, randomColor, 2, 8 );             // draw single contour
+//        int numPoints = singleContour.size();                               // get number of points
+//        std::cout << "\t contour [" << i << "] has " << numPoints << " points.\n";
+//    }
+//    Mat justContoursImage;
+//    justContoursImage.create(myImage.rows, myImage.cols, CV_8U); // also draw contours on new image
+//    drawContours(justContoursImage, contours, -1, Scalar(255), 2, 8);
 
-////    std::cout << pointerToContours->total << " number of contours\n";
-////    // find Hough lines
-////    void* linesPointer;
-////    double rho      = 0.5;
-////    double theta    = 0.5; // may need to rename this variable
-////    int threshold   = 1;
-////    cvHoughLines2(closedImage, linesPointer, CV_HOUGH_STANDARD, rho, theta, threshold);
 
-////    // fit lines to contours
-////    Vec4f lines;
-////    std::cout << "about to do cvFitLine()\n";
-////    fitLine(Mat(pointerToContours[0]),lines,CV_DIST_L2, 0, 0.01, 0.01,); // first contour
+    // ------------- instead of contours, get Canny edges
+
+
+    // convert myImage to greyscale
+    Mat greyscale;
+    cvtColor(myImage, greyscale, CV_BGR2GRAY);
+
+    // do gaussian blur to get rid of noise
+    Mat blurImage;
+    blur(greyscale, blurImage, Size(3,3) );
+
+    // do Canny edge detection
+    Mat edges;
+    int kernelSize = 3;
+
+    // setup GUI
+    std::cout << "about to do canny with thresh [" << cannyThresh1 << " , " << cannyThresh2 << "]\n";
+    Canny(blurImage, edges, cannyThresh1, cannyThresh2, kernelSize);
+    // -------------- done with Canny edges
+
+    // find Hough lines
+    std::vector< Vec4i> lines;
+    double rho      = 0.5;
+    double theta    = 0.5; // may need to rename this variable
+    int threshold   = 1;
+    HoughLinesP(edges, lines, rho, theta, threshold, 0, 0); // use probabalistic Hough lines just because output is nicer format
+    std::cout << lines.size() << " number of lines\n";
+
+    // draw lines
+    for (int i = 0; i < lines.size(); i= i+10){
+        line(myImage, Point(lines[i][0], lines[i][1]), Point(lines[i][2], lines[i][3]), Scalar(0,0,255), 2, 8);
+    }
 
     // temp display results
-    imshow("testWindow1", closedImage );   // show the image
+    imshow("testWindow1", edges);   // show the image
     return true;
 }
 

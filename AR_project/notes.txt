@@ -15,6 +15,7 @@ To Do (ideas):
 5. Read more about Hough Lines: http://homepages.inf.ed.ac.uk/rbf/HIPR2/hough.htm
 6. Read Hu papers
 7. Replace Hough Transform with cvFitLine: http://stackoverflow.com/questions/14184147/detect-lines-opencv-in-object
+8. move all tuning parameters into global
 
 Notes:
 -----------
@@ -22,6 +23,3 @@ Notes:
     The timing of different methods is a bit wonky. Each method has its own "frequency" which is how often that method
     is called. main() is running at 100 Hz. So a method with a frequency of 10 Hz would run every 100/10 = 10 cycles.
 
-
-
-LEFT OFF: I've been using c methods, i need to switch to c++ methods. First start off replacing existing methods
