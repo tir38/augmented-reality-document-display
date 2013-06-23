@@ -17,5 +17,6 @@ int main();
 bool setupWebcam(CvCapture*& myCapture);
 bool displayFrame(IplImage*& myImage);
 bool trackObject(IplImage*& myImage);
+IplImage* computeCentroidAndOrientation(IplImage*& inputImage);
 
 #endif // MAINAR_H

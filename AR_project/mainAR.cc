@@ -112,56 +112,10 @@ bool trackObject(IplImage*& myImage){
     CvScalar upperBound = cvScalar(255, 255,    255);
     cvInRangeS(hsvImage, lowerBound, upperBound, thresholdImage);
 
-    // calculate the moments of the thresholded image
-    CvMoments* momentsOfThreshold = (CvMoments*)malloc(sizeof(CvMoments));
-    cvMoments(thresholdImage, momentsOfThreshold, 1);
-
-    // pull pertiment moments from all moments
-    double moment10 = cvGetSpatialMoment(momentsOfThreshold, 1, 0); // first moment (X)
-    double moment01 = cvGetSpatialMoment(momentsOfThreshold, 0, 1); // second moment (Y)
-    double moment00 = cvGetCentralMoment(momentsOfThreshold, 0, 0); // zero moment (i.e. area)
-    double moment11 = cvGetCentralMoment(momentsOfThreshold, 1, 1); // first cross moment (XY)
-    double moment20 = cvGetCentralMoment(momentsOfThreshold, 2, 0); // second moment (X^2)
-    double moment02 = cvGetCentralMoment(momentsOfThreshold, 0, 2); // second moment (Y^2)
-
-    // think about adding conditional such that area > someArea or else break
-
-    // compute centroid (xBar, yBar) from moments
-    int xBar = (int)moment10 / moment00; // typecast to int
-    int yBar = (int)moment01 / moment00; // typecast to int
-
-    // compute orientation from moments (see reference paper)
-    double mu20 = (moment20 / moment00) - ((moment10 * moment10) / (moment00));
-    double mu02 = (moment02 / moment00) - ((moment01 * moment01) / (moment00));
-    double mu11 = (moment11 / moment00) - ((moment10 * moment01) / (moment00));
-    double theta = 0.5 * atan((2 * mu11) / (mu20 - mu02)); // radians
-
-    std::cout << "theta = " << theta << "\n";
-
-    // create image to hold overlay drawing
-    IplImage* overlayImage = cvCreateImage(cvGetSize(myImage), myImage->depth, 3);
-
-//    // draw + shape at centroid
-//    // compute points; "top", "bottom", "left", and "right" are just semantic names given to four points
-//    // do geometric calc and typecast to int all inline (yeah its ugly, i know)
-//    CvPoint topPoint    = cvPoint(((int)(xBar+120*sin(theta))),         ((int)(yBar+120*cos(theta))));
-//    CvPoint bottomPoint = cvPoint(((int)(xBar-120*sin(theta))),         ((int)(yBar-120*cos(theta))));
-//    CvPoint leftPoint   = cvPoint(((int)(xBar- 80*sin(theta-1.57))),    ((int)(yBar- 80*cos(theta-1.57))));
-//    CvPoint rightPoint  = cvPoint(((int)(xBar+ 80*sin(theta-1.57))),    ((int)(yBar+ 80*cos(theta-1.57))));
-
-//    if ((topPoint.x > 0)    && (topPoint.x < 600)       && (topPoint.y > 0)     && (topPoint.y<480)   // basically check that every point is within 640 x 480 window
-//    && (bottomPoint.x > 0)  && (bottomPoint.x < 600)    && (bottomPoint.y > 0)  && (bottomPoint.y<480)
-//    && (leftPoint.x > 0)    && (leftPoint.x < 600)      && (leftPoint.y > 0)    && (leftPoint.y<480)
-//    && (rightPoint.x > 0)   && (rightPoint.x < 600)     && (rightPoint.y > 0)   && (rightPoint.y<480)){
-
-//        // draw two lines
-//        cvLine(overlayImage, topPoint, bottomPoint, cvScalar(0,0,255), 5); // horizontal line
-//        cvLine(overlayImage, leftPoint, rightPoint, cvScalar(0,0,255), 5); // vertical line*/
-
-//        // combine myImage with overlay image
-//        cvAdd(myImage, overlayImage, myImage);
-//    }
-
+    // compute centroid and blob orientation and draw
+    IplImage* centroidImage;                                        // declare image to hold centroid drawing
+    centroidImage = computeCentroidAndOrientation(thresholdImage);  // compute centroid and orientation
+    cvAdd(myImage, centroidImage, myImage);                         // display results
 
     // compute contours and draw them
         // When computing contours input image will be overwritten;
@@ -188,4 +142,63 @@ bool trackObject(IplImage*& myImage){
     // temp display results
     cvShowImage("testWindow1", thresholdImage );   // show the image
     return true;
+}
+
+/**
+    description: computes the centroid and orientation of the threshold image
+    input: reference to pointer to IplImage (1 channel) threshold image
+    returns: pointer to IplImage (3 channel) for overlay onto myImage
+
+**/
+IplImage* computeCentroidAndOrientation(IplImage*& inputImage){
+    // calculate the moments of the thresholded image
+    CvMoments* momentsOfThreshold = (CvMoments*)malloc(sizeof(CvMoments));  // allocate space to store moments
+    cvMoments(inputImage, momentsOfThreshold, 1);                           // compute moments
+
+    // pull pertiment moments from all moments
+    double moment10 = cvGetSpatialMoment(momentsOfThreshold, 1, 0); // first moment (X)
+    double moment01 = cvGetSpatialMoment(momentsOfThreshold, 0, 1); // second moment (Y)
+    double moment00 = cvGetCentralMoment(momentsOfThreshold, 0, 0); // zero moment (i.e. area)
+    double moment11 = cvGetCentralMoment(momentsOfThreshold, 1, 1); // first cross moment (XY)
+    double moment20 = cvGetCentralMoment(momentsOfThreshold, 2, 0); // second moment (X^2)
+    double moment02 = cvGetCentralMoment(momentsOfThreshold, 0, 2); // second moment (Y^2)
+
+    // think about adding conditional such that area > someArea or else break
+
+    // compute centroid (xBar, yBar) from moments
+    int xBar = (int)moment10 / moment00; // typecast to int
+    int yBar = (int)moment01 / moment00; // typecast to int
+
+    // compute orientation from moments (see reference paper)
+    double mu20 = (moment20 / moment00) - ((moment10 * moment10) / (moment00));
+    double mu02 = (moment02 / moment00) - ((moment01 * moment01) / (moment00));
+    double mu11 = (moment11 / moment00) - ((moment10 * moment01) / (moment00));
+    double theta = 0.5 * atan((2 * mu11) / (mu20 - mu02)); // radians
+
+    std::cout << "theta = " << theta << "\n";
+
+    // create image to hold overlay drawing
+    IplImage* overlayImage = cvCreateImage(cvGetSize(inputImage), inputImage->depth, 3);
+
+    // draw + shape at centroid
+    // compute points; "top", "bottom", "left", and "right" are just semantic names given to four points
+    // do geometric calc and typecast to int all inline (yeah its ugly, i know)
+    CvPoint topPoint    = cvPoint(((int)(xBar+120*sin(theta))),         ((int)(yBar+120*cos(theta))));
+    CvPoint bottomPoint = cvPoint(((int)(xBar-120*sin(theta))),         ((int)(yBar-120*cos(theta))));
+    CvPoint leftPoint   = cvPoint(((int)(xBar- 80*sin(theta-1.57))),    ((int)(yBar- 80*cos(theta-1.57))));
+    CvPoint rightPoint  = cvPoint(((int)(xBar+ 80*sin(theta-1.57))),    ((int)(yBar+ 80*cos(theta-1.57))));
+
+    // basically check that every point is within 640 x 480 window
+    if ((topPoint.x > 0)    && (topPoint.x < 600)       && (topPoint.y > 0)     && (topPoint.y<480)
+    && (bottomPoint.x > 0)  && (bottomPoint.x < 600)    && (bottomPoint.y > 0)  && (bottomPoint.y<480)
+    && (leftPoint.x > 0)    && (leftPoint.x < 600)      && (leftPoint.y > 0)    && (leftPoint.y<480)
+    && (rightPoint.x > 0)   && (rightPoint.x < 600)     && (rightPoint.y > 0)   && (rightPoint.y<480)){
+
+        // draw two lines
+        cvLine(overlayImage, topPoint, bottomPoint, cvScalar(0,0,255), 5); // horizontal line
+        cvLine(overlayImage, leftPoint, rightPoint, cvScalar(0,0,255), 5); // vertical line*/
+
+    }
+    return overlayImage;
+
 }
