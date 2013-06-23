@@ -104,7 +104,7 @@ bool trackObject(IplImage*& myImage){
     IplImage* hsvImage = cvCreateImage(cvGetSize(myImage), myImage->depth, 3);  // create empty image of correct format; assume 3 channels (RGB)
     cvCvtColor(myImage, hsvImage, CV_BGR2HSV);                                  // convert from BGR to HSV
 
-    // create image to hold intensity threshold
+    // create image to hold threshold
     IplImage* thresholdImage = cvCreateImage(cvGetSize(myImage), myImage->depth, 1); // single channel: threshold intensity
 
     // do thresholding
@@ -112,43 +112,30 @@ bool trackObject(IplImage*& myImage){
     CvScalar upperBound = cvScalar(255, 255,    255);
     cvInRangeS(hsvImage, lowerBound, upperBound, thresholdImage);
 
+    // do closing
+    IplImage* closedImage           = cvCreateImage(cvGetSize(thresholdImage), thresholdImage->depth, 1); // 1 channel image
+    IplConvKernel* closingKernel    = cvCreateStructuringElementEx(3,3,1,1,CV_SHAPE_RECT);
+    IplImage* temp; // just needed for closing morphology
+    cvMorphologyEx(thresholdImage,closedImage,temp, closingKernel,MORPH_CLOSE, 3); // do closing 3 iterations
+
     // compute centroid and blob orientation and draw
     IplImage* centroidImage;                                        // declare image to hold centroid drawing
-    centroidImage = computeCentroidAndOrientation(thresholdImage);  // compute centroid and orientation
+    centroidImage = computeCentroidAndOrientation(closedImage);  // compute centroid and orientation
     cvAdd(myImage, centroidImage, myImage);                         // display results
 
-    // compute contours and draw them
-        // When computing contours input image will be overwritten;
-        // So to preserve threshold, create copy called contourImage
-    IplImage* contourImage = cvCreateImage(cvGetSize(myImage), myImage->depth, 1);
-    cvCopy(thresholdImage, contourImage);
-
-    // generate structures for finding contours
-    CvMemStorage* myStorage = cvCreateMemStorage();
-    CvSeq* pointerToContours = NULL; // sequence
-
-    // do find contours
-    cvFindContours(contourImage,
-                   myStorage,
-                   &pointerToContours,
-                   sizeof(CvContour),
-                   CV_RETR_LIST);
-
-    // draw the contours on myImage
+    // compute contours
+    CvSeq* pointerToContours = computeContours(closedImage); // update myImage
     cvDrawContours(myImage, pointerToContours, cvScalar(0,0,255), cvScalar(0,0,255), 2, 2, 8);
-//    cvAdd(thresholdImage, overlayL1Image, thresholdImage);     // combine myImage with overlay image
-
 
     // temp display results
-    cvShowImage("testWindow1", thresholdImage );   // show the image
+    cvShowImage("testWindow1", closedImage );   // show the image
     return true;
 }
 
 /**
-    description: computes the centroid and orientation of the threshold image
-    input: reference to pointer to IplImage (1 channel) threshold image
+    description: computes the centroid and orientation of the single-channel image
+    input: reference to pointer to IplImage (1 channel) image
     returns: pointer to IplImage (3 channel) for overlay onto myImage
-
 **/
 IplImage* computeCentroidAndOrientation(IplImage*& inputImage){
     // calculate the moments of the thresholded image
@@ -197,8 +184,31 @@ IplImage* computeCentroidAndOrientation(IplImage*& inputImage){
         // draw two lines
         cvLine(overlayImage, topPoint, bottomPoint, cvScalar(0,0,255), 5); // horizontal line
         cvLine(overlayImage, leftPoint, rightPoint, cvScalar(0,0,255), 5); // vertical line*/
-
     }
     return overlayImage;
+}
 
+/**
+    description: computes the contours
+    input: reference to pointer to IplImage; input (1 channel) image
+    returns: pointer to CvSeq; sequence with contours
+**/
+CvSeq* computeContours(IplImage* inputImage){
+    // When computing contours input image will be overwritten;
+    // So to preserve threshold, create copy called contourImage
+    IplImage* contourImage = cvCreateImage(cvGetSize(inputImage), inputImage->depth, 1);
+    cvCopy(inputImage, contourImage);
+
+    // generate structures for finding contours
+    CvMemStorage* myStorage = cvCreateMemStorage();
+    CvSeq* pointerToContours = NULL; // sequence
+
+    // find contours
+    cvFindContours(contourImage,
+                   myStorage,
+                   &pointerToContours,
+                   sizeof(CvContour),
+                   CV_RETR_LIST);
+
+    return pointerToContours;
 }

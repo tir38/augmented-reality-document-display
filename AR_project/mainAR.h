@@ -18,5 +18,7 @@ bool setupWebcam(CvCapture*& myCapture);
 bool displayFrame(IplImage*& myImage);
 bool trackObject(IplImage*& myImage);
 IplImage* computeCentroidAndOrientation(IplImage*& inputImage);
+CvSeq* computeContours(IplImage* myImage);
+
 
 #endif // MAINAR_H
