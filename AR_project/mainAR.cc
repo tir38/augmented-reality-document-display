@@ -17,7 +17,6 @@ int main (){
     int resetCounter    = displayPeriod * mainPeriod * trackPeriod;
     int counter = 0;
 
-//    CvCapture* myCapture;                               // declare capture
     VideoCapture myVideoCapture = setupWebcam();            // setup webcam
     if (!myVideoCapture.isOpened()){                        // confirm video capture is open
         std::cout << "===== ERROR: failed to setup webcam\n";
@@ -35,9 +34,6 @@ int main (){
     while(true){
 
         // get a frame
-//        IplImage* myImage;                      // create image
-//        myImage = cvQueryFrame(myCapture);      // "query" an image (i.e. get and decode)
-
         Mat myImage;
         myVideoCapture >> myImage;
 
@@ -66,14 +62,11 @@ int main (){
         if (counter > resetCounter){
             counter = 0;
         }
-
     }
 
     // ====================== CLEANUP ==========================
-//    cvReleaseCapture(&myCapture);       // release the capture source
-    myVideoCapture.release();           // release the capture source
-//    cvDestroyWindow("videoWindow");     // destroy the video window
-    destroyWindow("videoWindow"); // destroy the video window
+    myVideoCapture.release();       // release the capture source
+    destroyWindow("videoWindow");   // destroy the video window
 
     int dummy;
     return dummy;
@@ -88,7 +81,6 @@ int main (){
 VideoCapture setupWebcam(){
     int myDeviceID = 1;                                 // device 1 is my USB webcam
     VideoCapture myVideoCapture(myDeviceID);            // declare and initialize video capture
-//    myCapture = cvCreateCameraCapture(myDeviceID);// initialize CvCapture* on device
     return myVideoCapture;
 }
 
@@ -98,7 +90,6 @@ VideoCapture setupWebcam(){
     returns: true if successful
 **/
 bool displayFrame(Mat image){
-//    cvShowImage("videoWindow", myImage );   // show the image
     imshow("videoWindow", image); // show image
     return true;
 }
@@ -110,45 +101,33 @@ bool displayFrame(Mat image){
 **/
 bool trackObject(Mat myImage){
     // create copy of myImage and convert to HSV space
-//    IplImage* hsvImage = cvCreateImage(cvGetSize(myImage), myImage->depth, 3);  // create empty image of correct format; assume 3 channels (RGB)
     Mat hsvImage;
     hsvImage.create(myImage.rows, myImage.cols, myImage.type());
-//    cvCvtColor(myImage, hsvImage, CV_BGR2HSV);                                  // convert from BGR to HSV
     cvtColor(myImage, hsvImage, CV_BGR2HSV, 0); // convert from BGR to HSV, keep same number of channels (0)
 
-//    // create image to hold threshold
-//    IplImage* thresholdImage = cvCreateImage(cvGetSize(myImage), myImage->depth, 1); // single channel: threshold intensity
+    // create image to hold threshold
     Mat thresholdImage;
     thresholdImage.create(myImage.rows, myImage.cols, CV_8U); // force to be 8bit unsigned, single channel
 
-//    // do thresholding
+    // do thresholding
     Scalar lowerBound(0,   0,      200); // hue, saturation, intensity
     Scalar upperBound(255, 255,    255);
     inRange(hsvImage, lowerBound, upperBound, thresholdImage);
 
     // do closing
-//    IplImage* closedImage           = cvCreateImage(cvGetSize(thresholdImage), thresholdImage->depth, 1); // 1 channel image
     Mat closedImage;
-    closedImage.create(myImage.rows, myImage.cols, CV_8U); // force to be 8bit unsigned, single channel
-    //    IplConvKernel* closingKernel    = cvCreateStructuringElementEx(3,3,1,1,CV_SHAPE_RECT);
-//    IplImage* temp; // just needed for closing morphology
-    Size size(3,3);
+    closedImage.create(myImage.rows, myImage.cols, CV_8U);                      // force to be 8bit unsigned, single channel
+    Size size(3,3);                                                             // create kernel
     Mat closingKernel = getStructuringElement(MORPH_RECT, size, Point(-1,-1));
     int closingIterations = 2;
-//    cvMorphologyEx(thresholdImage,closedImage,temp, closingKernel,MORPH_CLOSE, 3); // do closing 3 iterations
     morphologyEx(thresholdImage, closedImage, MORPH_CLOSE, closingKernel, Point(-1,-1), closingIterations, BORDER_CONSTANT, morphologyDefaultBorderValue()); // basically use default parameters
 
     // compute centroid and blob orientation and draw
-//    IplImage* centroidImage;                                        // declare image to hold centroid drawing
-//    Mat centroidImage;
-//    centroidImage.create(myImage.rows, myImage.cols, myImage.type());
-    Mat centroidImage = computeCentroidAndOrientation(closedImage);  // compute centroid and orientation
-//    cvAdd(myImage, centroidImage, myImage);                         // display results
-    myImage = centroidImage + myImage; // merge images
+    Mat centroidImage = computeCentroidAndOrientation(closedImage);     // compute centroid and orientation
+    myImage = centroidImage + myImage;                                  // merge images
 
     // compute contours
     std::vector< std::vector< Point> > contours = computeContours(closedImage); // update myImage
-//    cvDrawContours(myImage, pointerToContours, cvScalar(0,0,255), cvScalar(0,0,255), 2, 2, 8);
     drawContours(myImage, contours, -1, Scalar(0,0,255), 2, 8); // draw all contours (-1), red, linethickness =2, 8bit
 
 ////    std::cout << pointerToContours->total << " number of contours\n";
@@ -178,11 +157,9 @@ Mat computeCentroidAndOrientation(Mat inputImage){
 
     std::cout << "===================\n";
     // calculate the moments of the thresholded image
-//    CvMoments* momentsOfThreshold = (CvMoments*)malloc(sizeof(CvMoments));  // allocate space to store moments
-//    cvMoments(inputImage, momentsOfThreshold, 1);                           // compute moments
     Moments momentsOfThreshold = moments(inputImage, false);
 
-//    // pull pertiment moments from all moments
+    // pull pertiment moments from all moments
     double m10 = momentsOfThreshold.m10; // first moment (X)
     double m01 = momentsOfThreshold.m01; // first moment (Y)
     double m00 = momentsOfThreshold.m00; // zero moment (i.e. area)
@@ -207,20 +184,15 @@ Mat computeCentroidAndOrientation(Mat inputImage){
     std::cout << "theta = " << theta << "\n";
 
     // create image to hold overlay drawing
-//    IplImage* overlayImage = cvCreateImage(cvGetSize(inputImage), inputImage->depth, 3);
     Mat overlayImage;
     overlayImage.create(inputImage.rows, inputImage.cols, CV_8UC3); // force to be 8bit unsigned, 3 channel (to match original image
 
     // draw + shape at centroid
     // compute points; "top", "bottom", "left", and "right" are just semantic names given to four points
     // do geometric calc and typecast to int all inline (yeah its ugly, i know)
-//    CvPoint topPoint    = cvPoint(((int)(xBar+120*sin(theta))),         ((int)(yBar+120*cos(theta))));
     Point topPoint = Point (((int)(xBar+120*sin(theta))),         ((int)(yBar+120*cos(theta))));
-//    CvPoint bottomPoint = cvPoint(((int)(xBar-120*sin(theta))),         ((int)(yBar-120*cos(theta))));
     Point bottomPoint = Point(((int)(xBar-120*sin(theta))),         ((int)(yBar-120*cos(theta))));
-//    CvPoint leftPoint   = cvPoint(((int)(xBar- 80*sin(theta-1.57))),    ((int)(yBar- 80*cos(theta-1.57))));
     Point leftPoint   = Point(((int)(xBar- 80*sin(theta-1.57))),    ((int)(yBar- 80*cos(theta-1.57))));
-//    CvPoint rightPoint  = cvPoint(((int)(xBar+ 80*sin(theta-1.57))),    ((int)(yBar+ 80*cos(theta-1.57))));
     Point rightPoint  = Point(((int)(xBar+ 80*sin(theta-1.57))),    ((int)(yBar+ 80*cos(theta-1.57))));
 
     // basically check that every point is within 640 x 480 window
@@ -244,22 +216,12 @@ Mat computeCentroidAndOrientation(Mat inputImage){
 std::vector< std::vector< Point> > computeContours(Mat inputImage){
     // When computing contours input image will be overwritten;
     // So to preserve threshold, create copy called contourImage
-//    IplImage* contourImage = cvCreateImage(cvGetSize(inputImage), inputImage->depth, 1);
     Mat contourImage = inputImage.clone();
-//    cvCopy(inputImage, contourImage);
 
     // generate structures for finding contours
-//    CvMemStorage* myStorage = cvCreateMemStorage();
-//    CvSeq* pointerToContours = NULL; // sequence
     std::vector< std::vector< Point> > contours; // declare vector of vector of points
 
     // find contours
-//    cvFindContours(contourImage,
-//                   myStorage,
-//                   &pointerToContours,
-//                   sizeof(CvContour),
-//                    CV_RETR_LIST);
-
     findContours(contourImage, contours, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE); // consider playing with CV_CHAIN_APPROX_NONE (see documentation)
     return contours;
 }
