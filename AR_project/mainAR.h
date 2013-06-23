@@ -13,12 +13,14 @@
 #include "opencv2/legacy/compat.hpp"
 #include "opencv2/opencv.hpp"
 
+using namespace cv;
+
 int main();
-bool setupWebcam(CvCapture*& myCapture);
-bool displayFrame(IplImage*& myImage);
-bool trackObject(IplImage*& myImage);
-IplImage* computeCentroidAndOrientation(IplImage*& inputImage);
-CvSeq* computeContours(IplImage* myImage);
+VideoCapture setupWebcam();
+bool displayFrame(Mat image);
+bool trackObject(Mat myImage);
+Mat computeCentroidAndOrientation(Mat inputImage);
+std::vector< std::vector< Point> > computeContours(Mat myImage);
 
 
 #endif // MAINAR_H
