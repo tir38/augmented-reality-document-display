@@ -70,16 +70,25 @@ int main (){
         }
 
         // detect lines
+        bool detectSuccess = false;
+        std::vector< Vec2f> lines;
         if(trackSuccess){
-            std::vector< Vec4i> lines;
             lines = lineDetection(maskedImage, cannyThres1, cannyThresh2);
             std::cout << lines.size() << " number of lines\n";
 
-            // draw lines on input image
-            for (int i = 0; i < lines.size(); i= i+10){
-                line(myImage, Point(lines[i][0], lines[i][1]), Point(lines[i][2], lines[i][3]), Scalar(0,0,255), 3, 8);
-            }
+//            // draw lines on input image (only works when getting Hough lines in [x1, y1, x2, y2] format
+//            for (int i = 0; i < lines.size(); i= i+10){
+//                line(myImage, Point(lines[i][0], lines[i][1]), Point(lines[i][2], lines[i][3]), Scalar(0,0,255), 3, 8);
+//            }
+            detectSuccess = true;
         }
+
+        // do clustering on lines
+        if (detectSuccess){
+            std::vector<Vec2f> clusteredLines;
+            clusteredLines = clusterLines(lines, myImage);
+        }
+
 
         // update display
         if(counter % displayPeriod == 0){
@@ -161,7 +170,7 @@ Mat trackObject(Mat myImage){
 
     // compute centroid and blob orientation and draw
     Mat centroidImage = computeCentroidAndOrientation(closedImage);     // compute centroid and orientation
-    myImage = centroidImage + myImage;                                  // merge images
+//    myImage = centroidImage + myImage;                                  // merge images
 
     //  AT THE MOMENT I DON'T NEED CONTOURS
 //    // compute contours
@@ -264,7 +273,12 @@ std::vector< std::vector< Point> > computeContours(Mat inputImage){
     return contours;
 }
 
-std::vector< Vec4i> lineDetection(Mat inputImage, int cannyThresh1, int cannyThresh2){
+/** =============================================================================
+    description: line detection using Canny edge detection and Hough Lines
+    input: Mat, image 8bit unsigned, single channel, two threshold parameters
+    returns: vector of Vec2f; lines in [rho, theta] format
+**/
+std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThresh2){
     // ------------- get Canny edges
     // convert myImage to greyscale
     Mat greyscale;
@@ -288,10 +302,88 @@ std::vector< Vec4i> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
 
     // find Hough lines
     std::vector< Vec4i> lines;
-    double rho      = 0.5;
-    double theta    = 0.5; // may need to rename this variable
-    int threshold   = 1;
+    double rho      = 1;
+    double theta    = CV_PI/180; // may need to rename this variable
+    int threshold   = 50    ;
     HoughLinesP(edgesImage, lines, rho, theta, threshold, 0, 0); // use probabalistic Hough lines just because output is nicer format
 
-    return lines;
+    //convert Hough lines to rho theta;
+    // I'm being lazy here. Instead of converting lines from [x1, y1, x2, y2] => [rho, theta],
+    // I'm just recomputing them using a method that outputs in [rho, theta] format.
+    std::vector<Vec2f> linesRhoTheta;         // pre allocate space
+    HoughLines(edgesImage, linesRhoTheta, rho, theta, threshold, 0, 0);
+
+//    // print lines FOR DEBUGGING ONLY
+//    for (int i = 0; i < linesRhoTheta.size(); i++){
+//        std::cout << "[" << linesRhoTheta[i][0] << " , " << linesRhoTheta[i][1] << "]\n";
+//    }
+
+    return linesRhoTheta;
+}
+
+/** =============================================================================
+    description: does clustering of all Hough lines in rho, theta space
+    input: lines and image to overlay
+    returns: new equations of lines for centers clustering
+**/
+std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
+
+    // convert vector<Vec2f> to Mat
+    Mat dataPoints;
+    for (int i = 0; i < lines.size(); i++){ // iterate through lines
+        dataPoints.push_back(lines[i]);
+    }
+
+    // tuning parameters
+    int K = 10;                 // cluster into K bins
+    int attempts = 5;           // do k means 5 times and pick best one
+    int maxIterations = 100;    // each attemp iterate 100 times
+    int epsilon = 2;            // AND with epsilon < 2 pixels
+
+    // output Mat's
+    Mat bestLabels;
+    Mat centers;
+
+    // do kMeans
+    kmeans(dataPoints, K, bestLabels, TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS, maxIterations, epsilon), attempts , KMEANS_RANDOM_CENTERS, centers );
+
+//    std::cout << "\t number of labels : [" << bestLabels.rows << " , " << bestLabels.cols <<"]\n";
+//    std::cout << "\t number of centers : [" << centers.rows << " , " << centers.cols <<  "]\n";
+
+    // convert Mat back to vector<Vec2f> and plot
+    std::vector<Vec2f> clusteredLines;
+    // plot line clusters
+    for (int i = 0; i < centers.rows; i++){
+        Vec2f center = centers.at<Vec2f>(i,1);
+        clusteredLines.push_back(center);
+
+        // convert rho, theta to x1, y1, x2, y2; just for plotting
+        float rho = center[0];
+        float theta = center[1];
+        Vec4f lineEq = rhoTheta2XY(rho, theta);
+        std::cout << "\t\t about to put line at " << round(lineEq(0)) << "," << round(lineEq(1)) << "," << round(lineEq(2)) << "," << round(lineEq(3)) << "\n";
+        line(myImage, Point(round(lineEq(0)), round(lineEq(1))), Point(round(lineEq(2)), round(lineEq(3))), Scalar(0,0,255), 2, 8);
+    }
+    return clusteredLines;
+}
+
+/** =============================================================================
+    description: simple script to convert line in rho/theta format to ([x1, y1], [x2, y2]) format
+    input: doubles rho and theta
+    returns: vector<float>(4) : {x1, y1, x2, y2}
+**/
+Vec4f rhoTheta2XY(double rho, double theta){
+
+   float a = cos(theta);
+   float b = sin(theta);
+   float x0 = a*rho;
+   float y0 = b*rho;
+
+   Vec4f xy;
+   xy(0) = (x0 + 1000*(-b));
+   xy(1) = (y0 + 1000*(a));
+   xy(2) = (x0 - 1000*(-b));
+   xy(3) = (y0 - 1000*(a));
+
+    return xy;
 }
