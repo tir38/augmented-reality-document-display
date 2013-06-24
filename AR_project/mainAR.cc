@@ -26,14 +26,15 @@ int main (){
     // setup windows
     namedWindow("videoWindow", CV_WINDOW_AUTOSIZE);   // create a window
     moveWindow("videoWindow", 10, 10);                // move window to top left corner
-    namedWindow("testWindow1", CV_WINDOW_AUTOSIZE);
-    moveWindow("testWindow1", 800, 10);
+    namedWindow("tracked area of interest", CV_WINDOW_AUTOSIZE);
+    moveWindow("tracked area of interest", 800, 10);
+    namedWindow("Canny line detection", CV_WINDOW_AUTOSIZE);
+    moveWindow("Canny line detection", 750,20);
 
     int cannyThres1;
     int cannyThresh2;
-    createTrackbar("Canny Low", "testWindow1", &cannyThres1, 100);
-    createTrackbar("Canny High", "testWindow1", &cannyThresh2, 100);;
-
+    createTrackbar("Canny Low", "Canny line detection", &cannyThres1, 100);
+    createTrackbar("Canny High", "Canny line detection", &cannyThresh2, 100);;
 
     // ====================== MAIN LOOP ==========================
     while(true){
@@ -42,11 +43,19 @@ int main (){
         Mat myImage;
         myVideoCapture >> myImage;
 
-        // do frame processing
+        // track object
+        bool trackSuccess = false;
         if(counter % trackPeriod == 0){
-            if(!trackObject(myImage, cannyThres1, cannyThresh2)){
+            if(!trackObject(myImage)){
                 std::cout << "===== ERROR: trackObject failed\n";
             }
+            else
+                trackSuccess = true;
+        }
+
+        // detect lines
+        if(trackSuccess){
+            lineDetection(myImage, cannyThres1, cannyThresh2);
         }
 
         // update display
@@ -71,7 +80,8 @@ int main (){
 
     // ====================== CLEANUP ==========================
     myVideoCapture.release();       // release the capture source
-    destroyWindow("videoWindow");   // destroy the video window
+    destroyWindow("videoWindow");   // destroy the video window(s)
+    destroyWindow("tracked area of interest");
 
     int dummy;
     return dummy;
@@ -104,31 +114,32 @@ bool displayFrame(Mat image){
     input: reference to pointer to IplImage
     returns: true if successful
 **/
-bool trackObject(Mat myImage, int cannyThresh1, int cannyThresh2){
+bool trackObject(Mat myImage){
     // create copy of myImage and convert to HSV space
     Mat hsvImage;
     hsvImage.create(myImage.rows, myImage.cols, myImage.type());
     cvtColor(myImage, hsvImage, CV_BGR2HSV, 0); // convert from BGR to HSV, keep same number of channels (0)
 
-//    // do thresholding
-//    Mat thresholdImage;
-//    thresholdImage.create(myImage.rows, myImage.cols, CV_8U); // force to be 8bit unsigned, single channel
-//    Scalar lowerBound(0,   0,      200); // hue, saturation, intensity
-//    Scalar upperBound(255, 255,    255);
-//    inRange(hsvImage, lowerBound, upperBound, thresholdImage);
+    // do thresholding
+    Mat thresholdImage;
+    thresholdImage.create(myImage.rows, myImage.cols, CV_8U); // force to be 8bit unsigned, single channel
+    Scalar lowerBound(0,   0,      200); // hue, saturation, intensity
+    Scalar upperBound(255, 255,    255);
+    inRange(hsvImage, lowerBound, upperBound, thresholdImage);
 
-//    // do closing
-//    Mat closedImage;
-//    closedImage.create(myImage.rows, myImage.cols, CV_8U);                      // force to be 8bit unsigned, single channel
-//    Size size(2,2);                                                             // create kernel
-//    Mat closingKernel = getStructuringElement(MORPH_RECT, size, Point(-1,-1));
-//    int closingIterations = 3;
-//    morphologyEx(thresholdImage, closedImage, MORPH_CLOSE, closingKernel, Point(-1,-1), closingIterations, BORDER_CONSTANT, morphologyDefaultBorderValue()); // basically use default parameters
+    // do closing
+    Mat closedImage;
+    closedImage.create(myImage.rows, myImage.cols, CV_8U);                      // force to be 8bit unsigned, single channel
+    Size size(2,2);                                                             // create kernel
+    Mat closingKernel = getStructuringElement(MORPH_RECT, size, Point(-1,-1));
+    int closingIterations = 3;
+    morphologyEx(thresholdImage, closedImage, MORPH_CLOSE, closingKernel, Point(-1,-1), closingIterations, BORDER_CONSTANT, morphologyDefaultBorderValue()); // basically use default parameters
 
-//    // compute centroid and blob orientation and draw
-//    Mat centroidImage = computeCentroidAndOrientation(closedImage);     // compute centroid and orientation
-//    myImage = centroidImage + myImage;                                  // merge images
+    // compute centroid and blob orientation and draw
+    Mat centroidImage = computeCentroidAndOrientation(closedImage);     // compute centroid and orientation
+    myImage = centroidImage + myImage;                                  // merge images
 
+    //  AT THE MOMENT I DON'T NEED CONTOURS
 //    // compute contours
 //    std::vector< std::vector< Point> > contours = computeContours(closedImage); // update myImage
 //    std::cout << "there are some contours :"  << contours.size() << "\n";
@@ -141,46 +152,13 @@ bool trackObject(Mat myImage, int cannyThresh1, int cannyThresh2){
 //        int numPoints = singleContour.size();                               // get number of points
 //        std::cout << "\t contour [" << i << "] has " << numPoints << " points.\n";
 //    }
+
 //    Mat justContoursImage;
 //    justContoursImage.create(myImage.rows, myImage.cols, CV_8U); // also draw contours on new image
 //    drawContours(justContoursImage, contours, -1, Scalar(255), 2, 8);
 
-
-    // ------------- instead of contours, get Canny edges
-
-
-    // convert myImage to greyscale
-    Mat greyscale;
-    cvtColor(myImage, greyscale, CV_BGR2GRAY);
-
-    // do gaussian blur to get rid of noise
-    Mat blurImage;
-    blur(greyscale, blurImage, Size(3,3) );
-
-    // do Canny edge detection
-    Mat edges;
-    int kernelSize = 3;
-
-    // setup GUI
-    std::cout << "about to do canny with thresh [" << cannyThresh1 << " , " << cannyThresh2 << "]\n";
-    Canny(blurImage, edges, cannyThresh1, cannyThresh2, kernelSize);
-    // -------------- done with Canny edges
-
-    // find Hough lines
-    std::vector< Vec4i> lines;
-    double rho      = 0.5;
-    double theta    = 0.5; // may need to rename this variable
-    int threshold   = 1;
-    HoughLinesP(edges, lines, rho, theta, threshold, 0, 0); // use probabalistic Hough lines just because output is nicer format
-    std::cout << lines.size() << " number of lines\n";
-
-    // draw lines
-    for (int i = 0; i < lines.size(); i= i+10){
-        line(myImage, Point(lines[i][0], lines[i][1]), Point(lines[i][2], lines[i][3]), Scalar(0,0,255), 2, 8);
-    }
-
     // temp display results
-    imshow("testWindow1", edges);   // show the image
+    imshow("tracked area of interest", closedImage);   // show the image
     return true;
 }
 
@@ -260,4 +238,40 @@ std::vector< std::vector< Point> > computeContours(Mat inputImage){
     // find contours
     findContours(contourImage, contours, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE); // consider playing with CV_CHAIN_APPROX_NONE (see documentation)
     return contours;
+}
+
+void lineDetection(Mat inputImage, int cannyThresh1, int cannyThresh2){
+    // ------------- get Canny edges
+    // convert myImage to greyscale
+    Mat greyscale;
+    cvtColor(inputImage, greyscale, CV_BGR2GRAY);
+
+    // do gaussian blur to get rid of noise
+    Mat blurImage;
+    blur(greyscale, blurImage, Size(3,3) );
+
+    // do Canny edge detection
+    Mat edgesImage;
+    int kernelSize = 3;
+
+    // setup GUI
+    std::cout << "about to do canny with thresh [" << cannyThresh1 << " , " << cannyThresh2 << "]\n";
+    Canny(blurImage, edgesImage, cannyThresh1, cannyThresh2, kernelSize);
+
+    // visualize Canny edges
+    imshow("Canny line detection", edgesImage);
+    // -------------- done with Canny edges
+
+    // find Hough lines
+    std::vector< Vec4i> lines;
+    double rho      = 0.5;
+    double theta    = 0.5; // may need to rename this variable
+    int threshold   = 1;
+    HoughLinesP(edgesImage, lines, rho, theta, threshold, 0, 0); // use probabalistic Hough lines just because output is nicer format
+    std::cout << lines.size() << " number of lines\n";
+
+    // draw lines on input image
+    for (int i = 0; i < lines.size(); i= i+10){
+        line(inputImage, Point(lines[i][0], lines[i][1]), Point(lines[i][2], lines[i][3]), Scalar(0,0,255), 2, 8);
+    }
 }
