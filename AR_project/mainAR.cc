@@ -43,19 +43,42 @@ int main (){
         Mat myImage;
         myVideoCapture >> myImage;
 
+        // setup masked image
+        Mat maskedImage;
+        maskedImage.create(myImage.rows, myImage.cols, CV_8UC3);
+
         // track object
         bool trackSuccess = false;
         if(counter % trackPeriod == 0){
-            if(!trackObject(myImage)){
-                std::cout << "===== ERROR: trackObject failed\n";
-            }
-            else
-                trackSuccess = true;
+            // do tracking
+            Mat trackedImage = trackObject(myImage); // get tracked object (8 bit unsigned, single channel)
+
+            // create 3channel image where trackedImage is in each channel
+            Mat trackedImage_C3(myImage.rows, myImage.cols, myImage.type());
+
+            // creat temp vector of Mat to store replicated matrix
+            std::vector<Mat> temp;
+            temp.push_back(trackedImage);
+            temp.push_back(trackedImage);
+            temp.push_back(trackedImage);
+
+            std::cout<< "about to merge\n";
+            merge(temp, trackedImage_C3);
+
+            maskedImage = myImage.mul(trackedImage_C3); // elementwise multiplication; since tracked image is binary, multiplying input image by either 1 or 0, it preserves the ROI
+            trackSuccess = true;
         }
 
         // detect lines
         if(trackSuccess){
-            lineDetection(myImage, cannyThres1, cannyThresh2);
+            std::vector< Vec4i> lines;
+            lines = lineDetection(maskedImage, cannyThres1, cannyThresh2);
+            std::cout << lines.size() << " number of lines\n";
+
+            // draw lines on input image
+            for (int i = 0; i < lines.size(); i= i+10){
+                line(myImage, Point(lines[i][0], lines[i][1]), Point(lines[i][2], lines[i][3]), Scalar(0,0,255), 3, 8);
+            }
         }
 
         // update display
@@ -82,6 +105,7 @@ int main (){
     myVideoCapture.release();       // release the capture source
     destroyWindow("videoWindow");   // destroy the video window(s)
     destroyWindow("tracked area of interest");
+    destroyWindow("Canny line detection");
 
     int dummy;
     return dummy;
@@ -114,7 +138,7 @@ bool displayFrame(Mat image){
     input: reference to pointer to IplImage
     returns: true if successful
 **/
-bool trackObject(Mat myImage){
+Mat trackObject(Mat myImage){
     // create copy of myImage and convert to HSV space
     Mat hsvImage;
     hsvImage.create(myImage.rows, myImage.cols, myImage.type());
@@ -159,7 +183,7 @@ bool trackObject(Mat myImage){
 
     // temp display results
     imshow("tracked area of interest", closedImage);   // show the image
-    return true;
+    return closedImage;
 }
 
 /** =============================================================================
@@ -240,7 +264,7 @@ std::vector< std::vector< Point> > computeContours(Mat inputImage){
     return contours;
 }
 
-void lineDetection(Mat inputImage, int cannyThresh1, int cannyThresh2){
+std::vector< Vec4i> lineDetection(Mat inputImage, int cannyThresh1, int cannyThresh2){
     // ------------- get Canny edges
     // convert myImage to greyscale
     Mat greyscale;
@@ -268,10 +292,6 @@ void lineDetection(Mat inputImage, int cannyThresh1, int cannyThresh2){
     double theta    = 0.5; // may need to rename this variable
     int threshold   = 1;
     HoughLinesP(edgesImage, lines, rho, theta, threshold, 0, 0); // use probabalistic Hough lines just because output is nicer format
-    std::cout << lines.size() << " number of lines\n";
 
-    // draw lines on input image
-    for (int i = 0; i < lines.size(); i= i+10){
-        line(inputImage, Point(lines[i][0], lines[i][1]), Point(lines[i][2], lines[i][3]), Scalar(0,0,255), 2, 8);
-    }
+    return lines;
 }

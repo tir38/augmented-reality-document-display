@@ -16,6 +16,7 @@ To Do (ideas):
 6. Read Hu papers
 7. Replace Hough Transform with cvFitLine: http://stackoverflow.com/questions/14184147/detect-lines-opencv-in-object
 8. move all tuning parameters into global
+9. for submethods that return Mat, figure out how to determine if submethod fails (i.e. if Mat == NULL ??)
 
 Notes:
 -----------
