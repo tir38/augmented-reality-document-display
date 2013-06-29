@@ -3,6 +3,7 @@
 # include <vector>
 # include <stdio.h>
 # include "math.h" // for arctan
+# include <algorithm> // for sort
 using namespace cv;
 /** =============================================================================
     description: main program
@@ -28,13 +29,15 @@ int main (){
     moveWindow("videoWindow", 10, 10);                // move window to top left corner
     namedWindow("tracked area of interest", CV_WINDOW_AUTOSIZE);
     moveWindow("tracked area of interest", 800, 10);
-    namedWindow("Canny line detection", CV_WINDOW_AUTOSIZE);
-    moveWindow("Canny line detection", 750,20);
+    namedWindow("canny edge detection", CV_WINDOW_AUTOSIZE);
+    moveWindow("canny edge detection", 750,20);
 
-    int cannyThres1;
-    int cannyThresh2;
-    createTrackbar("Canny Low", "Canny line detection", &cannyThres1, 100);
-    createTrackbar("Canny High", "Canny line detection", &cannyThresh2, 100);;
+    int cannyThres1 = 0;
+    int cannyThresh2 = 95;
+    int houghThresh = 80;
+    createTrackbar("Canny Low", "canny edge detection", &cannyThres1, 100);
+    createTrackbar("Canny High", "canny edge detection", &cannyThresh2, 100);
+    createTrackbar("Hough threshold", "canny edge detection", &houghThresh, 100);
 
     // ====================== MAIN LOOP ==========================
     while(true){
@@ -73,22 +76,40 @@ int main (){
         bool detectSuccess = false;
         std::vector< Vec2f> lines;
         if(trackSuccess){
-            lines = lineDetection(maskedImage, cannyThres1, cannyThresh2);
-            std::cout << lines.size() << " number of lines\n";
+            lines = lineDetection(maskedImage, cannyThres1, cannyThresh2, houghThresh);
 
-//            // draw lines on input image (only works when getting Hough lines in [x1, y1, x2, y2] format
-//            for (int i = 0; i < lines.size(); i= i+10){
-//                line(myImage, Point(lines[i][0], lines[i][1]), Point(lines[i][2], lines[i][3]), Scalar(0,0,255), 3, 8);
+//            // display Hough lines; move this into lineDetection subfunction
+//            for (int i = 0; i < lines.size(); i++){
+//                float rho = lines[i][0];
+//                float theta = lines[i][1];
+//                Vec4f lineEq = rhoTheta2XY(rho, theta); // convert rho, theta to x1, y1, x2, y2; just for plotting
+//                line(myImage, Point(round(lineEq(0)), round(lineEq(1))), Point(round(lineEq(2)), round(lineEq(3))), Scalar(0,255,0), 2, 8);
 //            }
+
+            std::cout << "number of Hough lines = " << lines.size() << "\n";
             detectSuccess = true;
         }
 
         // do clustering on lines
-        if (detectSuccess){
-            std::vector<Vec2f> clusteredLines;
+        bool clusterSuccess = false;
+        std::vector<Vec2f> clusteredLines;
+        if (lines.size()>0){
             clusteredLines = clusterLines(lines, myImage);
+            std::cout << "number of clustered lines = " << clusteredLines.size() << "\n";
+            clusterSuccess = true;
         }
 
+        // do corner estimation from lines; corner is defined as "meaningful" intersection of lines
+        if ((clusteredLines.size() >= 2) && (clusterSuccess)){ // obviously no reason to find corners on fewer than two lines
+            std::vector<Vec2f> intersectionPoints = computeCorners(clusteredLines, myImage);
+            std::vector<Vec2f> orderedPoints = putPointsInOrder(intersectionPoints);
+
+            // draw polygon
+            for (int i = 0; i < intersectionPoints.size()-1; i++){
+                line(myImage, Point(round(orderedPoints[i][0]), round(orderedPoints[i][1])), Point(round(orderedPoints[i+1][0]), round(orderedPoints[i+1][1])), Scalar(255,255,0), 2, 8);
+            }
+            line(myImage, Point(round(orderedPoints[0][0]), round(orderedPoints[0][1])), Point(round(orderedPoints[intersectionPoints.size()-1][0]), round(orderedPoints[intersectionPoints.size()-1][1])), Scalar(255,255,0), 2, 8); // closing line
+        }
 
         // update display
         if(counter % displayPeriod == 0){
@@ -114,7 +135,7 @@ int main (){
     myVideoCapture.release();       // release the capture source
     destroyWindow("videoWindow");   // destroy the video window(s)
     destroyWindow("tracked area of interest");
-    destroyWindow("Canny line detection");
+    destroyWindow("canny edge detection");
 
     int dummy;
     return dummy;
@@ -156,11 +177,11 @@ Mat trackObject(Mat myImage){
     // do thresholding
     Mat thresholdImage;
     thresholdImage.create(myImage.rows, myImage.cols, CV_8U); // force to be 8bit unsigned, single channel
-    Scalar lowerBound(0,   0,      200); // hue, saturation, intensity
+    Scalar lowerBound(0,   0,      180); // hue, saturation, intensity
     Scalar upperBound(255, 255,    255);
     inRange(hsvImage, lowerBound, upperBound, thresholdImage);
 
-    // do closing
+    // do closing; I need to do closing to remove any text on page
     Mat closedImage;
     closedImage.create(myImage.rows, myImage.cols, CV_8U);                      // force to be 8bit unsigned, single channel
     Size size(2,2);                                                             // create kernel
@@ -190,7 +211,7 @@ Mat trackObject(Mat myImage){
 //    justContoursImage.create(myImage.rows, myImage.cols, CV_8U); // also draw contours on new image
 //    drawContours(justContoursImage, contours, -1, Scalar(255), 2, 8);
 
-    // temp display results
+    // display intermediate results
     imshow("tracked area of interest", closedImage);   // show the image
     return closedImage;
 }
@@ -278,7 +299,13 @@ std::vector< std::vector< Point> > computeContours(Mat inputImage){
     input: Mat, image 8bit unsigned, single channel, two threshold parameters
     returns: vector of Vec2f; lines in [rho, theta] format
 **/
-std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThresh2){
+std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThresh2, int houghThresh){
+
+    // make sure thresholds are positive values
+    if (cannyThresh1 < 0){cannyThresh1 = 0;}
+    if (cannyThresh2 < 0){cannyThresh2 = 0;}
+    if (houghThresh < 1){houghThresh = 1;}
+
     // ------------- get Canny edges
     // convert myImage to greyscale
     Mat greyscale;
@@ -290,35 +317,33 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
 
     // do Canny edge detection
     Mat edgesImage;
-    int kernelSize = 3;
+    int kernelSize = 3; // I'm looking for crisp thin edges, so use small kernel
 
     // setup GUI
     std::cout << "about to do canny with thresh [" << cannyThresh1 << " , " << cannyThresh2 << "]\n";
     Canny(blurImage, edgesImage, cannyThresh1, cannyThresh2, kernelSize);
 
     // visualize Canny edges
-    imshow("Canny line detection", edgesImage);
+    imshow("canny edge detection", edgesImage);
     // -------------- done with Canny edges
 
-    // find Hough lines
-    std::vector< Vec4i> lines;
-    double rho      = 1;
-    double theta    = CV_PI/180; // may need to rename this variable
-    int threshold   = 50    ;
-    HoughLinesP(edgesImage, lines, rho, theta, threshold, 0, 0); // use probabalistic Hough lines just because output is nicer format
+    // find Hough lines; because the edge detection is really crisp, we can jack up the Hough threshold
+    double rho      = 2;
+    double theta    = CV_PI/90;         // may need to rename this variable
+    std::vector<Vec2f> lines;         // pre allocate space
+    HoughLines(edgesImage, lines, rho, theta, houghThresh, 0, 0);
 
-    //convert Hough lines to rho theta;
-    // I'm being lazy here. Instead of converting lines from [x1, y1, x2, y2] => [rho, theta],
-    // I'm just recomputing them using a method that outputs in [rho, theta] format.
-    std::vector<Vec2f> linesRhoTheta;         // pre allocate space
-    HoughLines(edgesImage, linesRhoTheta, rho, theta, threshold, 0, 0);
-
-//    // print lines FOR DEBUGGING ONLY
-//    for (int i = 0; i < linesRhoTheta.size(); i++){
-//        std::cout << "[" << linesRhoTheta[i][0] << " , " << linesRhoTheta[i][1] << "]\n";
+//    // remove Hough lines with non-positive rho; I DON'T THINK I NEED THIS
+//    for (int i = 0; i < lines.size();){ // iterate through all and remove some
+//        if (lines[i][0] <= 0) {
+//            lines.erase(lines.begin()+i     );
+//        }
+//        else{
+//            i++; // put the iterator here so that I don't skip anything
+//        }
 //    }
 
-    return linesRhoTheta;
+    return lines;
 }
 
 /** =============================================================================
@@ -329,14 +354,18 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
 std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
 
     // convert vector<Vec2f> to Mat
-    Mat dataPoints;
+    Mat dataPoints(lines.size(), 2, CV_32F);
     for (int i = 0; i < lines.size(); i++){ // iterate through lines
-        dataPoints.push_back(lines[i]);
+        dataPoints.at<float>(i,0) = lines[i][0];
+        dataPoints.at<float>(i,1) = lines[i][1];
     }
 
     // tuning parameters
-    int K = 10;                 // cluster into K bins
-    int attempts = 5;           // do k means 5 times and pick best one
+    int K = 4;                  // cluster into K bins
+    if (lines.size() < K){      // if number of lines is less than number of attempted clusters...
+        K = lines.size();       // ... reduce number of clusters
+    }
+    int attempts = 6;           // do k means 5 times and pick best one
     int maxIterations = 100;    // each attemp iterate 100 times
     int epsilon = 2;            // AND with epsilon < 2 pixels
 
@@ -345,24 +374,40 @@ std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
     Mat centers;
 
     // do kMeans
-    kmeans(dataPoints, K, bestLabels, TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS, maxIterations, epsilon), attempts , KMEANS_RANDOM_CENTERS, centers );
+//    kmeans(dataPoints, K, bestLabels, TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS, maxIterations, epsilon), attempts , KMEANS_RANDOM_CENTERS, centers );
+    kmeans(dataPoints, K, bestLabels, TermCriteria(CV_TERMCRIT_ITER, maxIterations, epsilon), attempts , KMEANS_RANDOM_CENTERS, centers );
 
-//    std::cout << "\t number of labels : [" << bestLabels.rows << " , " << bestLabels.cols <<"]\n";
-//    std::cout << "\t number of centers : [" << centers.rows << " , " << centers.cols <<  "]\n";
+    std::cout << "best labels is of size [" << bestLabels.rows << ", " << bestLabels.cols << "]\n";
 
+    // for debugging:
+    // print Hough lines
+    for (int i = 0; i < lines.size(); i++){
+        std::cout << "\t[" << lines[i][0] << ", " << lines[i][1] << "] with label " << bestLabels.at<int>(i, 1) <<  "\n";
+    }
+
+    // plot line clusters
     // convert Mat back to vector<Vec2f> and plot
     std::vector<Vec2f> clusteredLines;
-    // plot line clusters
+    std::cout << "clusteredLines(rho, theta):\n";
     for (int i = 0; i < centers.rows; i++){
-        Vec2f center = centers.at<Vec2f>(i,1);
+        Vec2f center;
+        center[0] = centers.at<float>(i,0);
+        center[1] = centers.at<float>(i,1);
         clusteredLines.push_back(center);
 
         // convert rho, theta to x1, y1, x2, y2; just for plotting
         float rho = center[0];
         float theta = center[1];
+        std::cout << "\t[" << rho << ", " << theta << "]\n";
+
+//        if (rho < 0.001 && theta < 0.001){  // if rho and theta are both approx zero, its because that cluster doesn't have any element in it...
+//            continue;                       // ... so don't save it.
+//        }
+
         Vec4f lineEq = rhoTheta2XY(rho, theta);
-        std::cout << "\t\t about to put line at " << round(lineEq(0)) << "," << round(lineEq(1)) << "," << round(lineEq(2)) << "," << round(lineEq(3)) << "\n";
-        line(myImage, Point(round(lineEq(0)), round(lineEq(1))), Point(round(lineEq(2)), round(lineEq(3))), Scalar(0,0,255), 2, 8);
+
+        // plot
+//        line(myImage, Point(round(lineEq(0)), round(lineEq(1))), Point(round(lineEq(2)), round(lineEq(3))), Scalar(0,0,255), 2, 8);
     }
     return clusteredLines;
 }
@@ -372,7 +417,7 @@ std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
     input: doubles rho and theta
     returns: vector<float>(4) : {x1, y1, x2, y2}
 **/
-Vec4f rhoTheta2XY(double rho, double theta){
+Vec4f rhoTheta2XY(float rho, float theta){
 
    float a = cos(theta);
    float b = sin(theta);
@@ -387,3 +432,132 @@ Vec4f rhoTheta2XY(double rho, double theta){
 
     return xy;
 }
+
+
+/** =============================================================================
+    description: simple script to convert line in rho/theta format to y = mx + b format
+    input: doubles rho and theta
+    returns: vector<float>(2) : {m, b}
+**/
+Vec2f rhoTheta2SlopeIntercept(float rho, float theta){
+    // call rhoTheta2XY() first;
+    // and then compute slope and intercept
+
+    Vec4f xy;
+    xy = rhoTheta2XY(rho, theta);
+
+    float m = (xy[3] - xy[1]) / (xy[2] - xy[0]); // rise / run
+    float b = xy[3] - (m*xy[2]);
+
+    Vec2f output;
+    output[0] = m;
+    output[1] = b;
+    return output;
+}
+
+/** =============================================================================
+    description: tries to find corners by computing intersections of lines
+    input: vector of lines in rho/theta format
+    returns: void
+**/
+std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputImage){
+
+    // convert all lines from rho/theta into slope intercept
+    std::vector< Vec2f> lines;
+    for (int i = 0; i < clusteredLines.size(); i++){
+        // convert all lines to slope intercept form (y = m*x + b)
+        Vec2f line = rhoTheta2SlopeIntercept(clusteredLines[i][0], clusteredLines[i][1]);
+        lines.push_back(line);
+    }
+
+    // compute intersection point of each line with each other line
+    std::cout << "found intersections:\n";
+    std::vector <Vec2f> intersectionPoints;
+    int k = 0;
+    for (int i = 0; i < clusteredLines.size(); i++){
+        for (int j = i+1; j < clusteredLines.size(); j++){
+            float x = (lines[j][1] - lines[i][1]) / (lines[i][0] - lines[j][0]); // x = (b2 - b1)/(m1 - m2)
+            float y = lines[i][0] * x  + lines[i][1]; // y = m1*x + b1
+
+            k++;
+
+            int xInt = round(x); // conver floats to pixel values
+            int yInt = round(y);
+
+            if ((xInt >= 0) && (xInt <= 640) && (yInt >= 0) && (yInt <= 480)){ // if intersection is inside frame
+                // add to list of intersection points
+                Vec2f temp;
+                temp[0] = xInt;
+                temp[1] = yInt;
+                intersectionPoints.push_back(temp);
+                std::cout << "\t [" << xInt << ", " << yInt << "]\n";
+
+                // and plot
+//                circle(inputImage, Point(xInt, yInt), 5, Scalar(255,0,0), 2, 8);
+            }
+        }
+    }
+
+    std::cout << "found " << intersectionPoints.size() << " intersection points\n";
+    return intersectionPoints;
+}
+
+/** =============================================================================
+    description: puts polygon points in order clockwise
+    input: vector of Vec2f points
+    returns: void
+  **/
+std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints){
+    std::cout << "inside putPointsInOrder()\n";
+    std::cout << "\t number of intersection points = " << intersectionPoints.size() << "\n";
+
+    std::vector< std::vector< float> > tempPoints;
+
+    // compute centroid of all points
+    Vec2f centroid;
+    for (int i = 0; i < intersectionPoints.size(); i++){
+        centroid[0] = centroid[0] + intersectionPoints[i][0];
+        centroid[1] = centroid[1] + intersectionPoints[i][1];
+    }
+    centroid[0] = centroid[0] / intersectionPoints.size();
+    centroid[1] = centroid[1] / intersectionPoints.size();
+    std::cout << "\t centroid of intersection points = [" << centroid[0] << ", " << centroid[1] << "]\n";
+
+    // compute the heading from centroid to each point; order points by heading
+    for (int i = 0; i < intersectionPoints.size(); i++){
+        float heading = atan((intersectionPoints[i][1] - centroid[1]) / (intersectionPoints[i][0] - centroid[0]));
+        if (intersectionPoints[i][0] - centroid[0] < 0){
+            heading = heading* (-1);
+            if (heading > 0){
+                heading = heading+(M_PI/2);
+            }
+            else{
+                heading = heading-(M_PI/2);
+            }
+        }
+        std::cout << "\t\t heading = " << heading << "\n";
+
+        // put heading in a new temp vector along with intersection point x,y
+        // by putting heading in first column, I can easily sort later
+        std::vector<float> tempV;
+        float tempA[] = {heading, intersectionPoints[i][0], intersectionPoints[i][1]};
+        tempV.assign (tempA,tempA+3);   // assigning from array.
+        tempPoints.push_back(tempV); // put
+    }
+
+    // now do ordering
+    std::sort(tempPoints.begin(), tempPoints.end());
+
+    // overwrite intersectionPoints with ordered points
+    intersectionPoints.clear();
+    for (int i = 0; i < tempPoints.size(); i++){
+        Vec2f orderedPoint;
+        orderedPoint[0] = tempPoints[i][1];
+        orderedPoint[1] = tempPoints[i][2];
+        std::cout << "\t\t[" << tempPoints[i][0] << ", " << tempPoints[i][1] << ", " << tempPoints[i][2] << "]\n";
+        intersectionPoints.push_back(orderedPoint);
+    }
+
+    return intersectionPoints;
+}
+

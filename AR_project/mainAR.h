@@ -27,10 +27,18 @@ Mat computeCentroidAndOrientation(Mat inputImage);
 
 std::vector< std::vector< Point> > computeContours(Mat myImage);
 
-std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThresh2);
+std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThresh2, int houghThresh);
 
 std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage);
 
-Vec4f rhoTheta2XY(double rho, double theta);
+Vec4f rhoTheta2XY(float rho, float theta);
+
+Vec2f rhoTheta2SlopeIntercept(float rho, float theta);
+
+std::vector<Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputImage);
+
+std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints);
+
+
 
 #endif // MAINAR_H
