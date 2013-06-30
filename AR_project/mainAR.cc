@@ -1,10 +1,14 @@
 
 # include "mainAR.h"
-# include <vector>
-# include <stdio.h>
-# include "math.h" // for arctan
-# include <algorithm> // for sort
+# include <vector>      // for vectors
+# include <stdio.h>     // for basic cout
+# include "math.h"      // for arctan
+# include <algorithm>   // for sort
+# include <Magick++.h>   // for zbar: QR code scanning
+# include <zbar.h>       // for zbar
+
 using namespace cv;
+using namespace zbar;
 /** =============================================================================
     description: main program
     input: none
@@ -120,7 +124,11 @@ int main (){
         Mat correctedImage;
         if (orderedPoints.size() == 4 && intersectionSuccess){
              correctedImage = doTransformation(orderedPoints, myImage);
+             transformationSuccess = true;
         }
+
+        // read QR code from corrected image
+        zBarTest();
 
         // update display
         if(counter % displayPeriod == 0){
@@ -626,4 +634,45 @@ Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage){
     imshow("transformed image", outputImage);
 
     return outputImage;
+}
+
+
+void zBarTest(){
+    std::cout << "doing zBar:\n";
+
+    //setup reader
+    ImageScanner myScanner;
+
+    // configure the reader
+    myScanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
+
+    // obtain image data
+    std::string fileName = "myImage.png";
+    Magick::Image myMagick(fileName);
+    int width = myMagick.columns();   // extract dimensions
+    int height = myMagick.rows();
+    Magick::Blob blob;              // extract the raw data
+    myMagick.modifyImage();
+    myMagick.write(&blob, "GRAY", 8);
+    const void *raw = blob.data();
+    std::cout << "\t size:" << width << ", " << height << "\n";
+
+    // wrap image data
+    Image image(width, height, "Y800", raw, width * height);
+
+    // scan the image for barcodes
+    int n = myScanner.scan(image);
+
+    // extract results
+    for(Image::SymbolIterator symbol = image.symbol_begin();
+        symbol != image.symbol_end();
+        ++symbol) {
+        // do something useful with results
+        std::cout << "decoded " << symbol->get_type_name() << " symbol \"" << symbol->get_data() << '"' << "\n";
+
+    }
+
+    // clean up
+    image.set_data(NULL, 0);
+
 }

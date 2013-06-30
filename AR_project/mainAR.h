@@ -13,6 +13,8 @@
 #include "opencv2/legacy/compat.hpp"
 #include "opencv2/opencv.hpp"
 
+
+
 using namespace cv;
 
 int main();
@@ -40,6 +42,8 @@ std::vector<Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputIm
 std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints);
 
 Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage);
+
+void zBarTest();
 
 
 #endif // MAINAR_H

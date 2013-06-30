@@ -7,17 +7,18 @@ Absolute idiot's guide to installing OpenCV on Ubuntu 12.04:
 
 To Do (ideas):
 -----------------
-1. consider detecting all cameras and picking the "right" one:
-    http://stackoverflow.com/questions/9645784/opencv-counting-cameras
-2. setup coroutines or task scheduler so that I can run multiple tasks simultaneously at different frequencies
-3. make myDeviceID a global variable
-4. [X]use erosion/dilation to remove any text on page when doing blob tracking
-5. Read more about Hough Lines: http://homepages.inf.ed.ac.uk/rbf/HIPR2/hough.htm
-6. Read Hu papers
-7. Replace Hough Transform with cvFitLine: http://stackoverflow.com/questions/14184147/detect-lines-opencv-in-object
-8. move all tuning parameters into global
-9. for submethods that return Mat, figure out how to determine if submethod fails (i.e. if Mat == NULL ??)
-10. Canny + Hough(80) + kMeans(4) is working pretty well for line detection. However, consider making robust by comparing lines w/ corner detection.
+1.  [ ] consider detecting all cameras and picking the "right" one:
+        http://stackoverflow.com/questions/9645784/opencv-counting-cameras
+2.  [ ] setup coroutines or task scheduler so that I can run multiple tasks simultaneously at different frequencies
+3.  [ ] make myDeviceID a global variable
+4.  [X] use erosion/dilation to remove any text on page when doing blob tracking
+5.  [ ] Read more about Hough Lines: http://homepages.inf.ed.ac.uk/rbf/HIPR2/hough.htm
+6.  [ ] Read Hu papers
+7.  [ ] Replace Hough Transform with cvFitLine: http://stackoverflow.com/questions/14184147/detect-lines-opencv-in-object
+8.  [ ] move all tuning parameters into global
+9.  [ ] for submethods that return Mat, figure out how to determine if submethod fails (i.e. if Mat == NULL ??)
+10. [ ] Canny + Hough(80) + kMeans(4) is working pretty well for line detection.
+        However, consider making robust by comparing lines w/ corner detection.
 
 Notes:
 -----------
