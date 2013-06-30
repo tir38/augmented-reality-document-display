@@ -12,12 +12,14 @@ using namespace cv;
 **/
 int main (){
     // ====================== SET UP ==========================
+    // setup timing parameters
     int displayPeriod   = 3;                           // number of 10 msec cycles
     int mainPeriod      = 1;                            // number of 10 msec cycles
     int trackPeriod     = 3;                           // number of 10 msec cycles
     int resetCounter    = displayPeriod * mainPeriod * trackPeriod;
     int counter = 0;
 
+    // setup wecam
     VideoCapture myVideoCapture = setupWebcam();            // setup webcam
     if (!myVideoCapture.isOpened()){                        // confirm video capture is open
         std::cout << "===== ERROR: failed to setup webcam\n";
@@ -31,7 +33,11 @@ int main (){
     moveWindow("tracked area of interest", 800, 10);
     namedWindow("canny edge detection", CV_WINDOW_AUTOSIZE);
     moveWindow("canny edge detection", 750,20);
+    namedWindow("transformed image",CV_WINDOW_AUTOSIZE);
+    moveWindow("transformed image", 750,20);
 
+
+    // setup trackbars and starting values
     int cannyThres1 = 0;
     int cannyThresh2 = 95;
     int houghThresh = 80;
@@ -46,12 +52,10 @@ int main (){
         Mat myImage;
         myVideoCapture >> myImage;
 
-        // setup masked image
-        Mat maskedImage;
-        maskedImage.create(myImage.rows, myImage.cols, CV_8UC3);
-
         // track object
         bool trackSuccess = false;
+        Mat maskedImage; // setup masked image
+        maskedImage.create(myImage.rows, myImage.cols, CV_8UC3);
         if(counter % trackPeriod == 0){
             // do tracking
             Mat trackedImage = trackObject(myImage); // get tracked object (8 bit unsigned, single channel)
@@ -77,6 +81,7 @@ int main (){
         std::vector< Vec2f> lines;
         if(trackSuccess){
             lines = lineDetection(maskedImage, cannyThres1, cannyThresh2, houghThresh);
+            detectSuccess = true;
 
 //            // display Hough lines; move this into lineDetection subfunction
 //            for (int i = 0; i < lines.size(); i++){
@@ -85,9 +90,6 @@ int main (){
 //                Vec4f lineEq = rhoTheta2XY(rho, theta); // convert rho, theta to x1, y1, x2, y2; just for plotting
 //                line(myImage, Point(round(lineEq(0)), round(lineEq(1))), Point(round(lineEq(2)), round(lineEq(3))), Scalar(0,255,0), 2, 8);
 //            }
-
-            std::cout << "number of Hough lines = " << lines.size() << "\n";
-            detectSuccess = true;
         }
 
         // do clustering on lines
@@ -95,20 +97,29 @@ int main (){
         std::vector<Vec2f> clusteredLines;
         if (lines.size()>0){
             clusteredLines = clusterLines(lines, myImage);
-            std::cout << "number of clustered lines = " << clusteredLines.size() << "\n";
             clusterSuccess = true;
         }
 
-        // do corner estimation from lines; corner is defined as "meaningful" intersection of lines
+        // do corner estimation from lines; corner is defined as intersection of lines
+        bool intersectionSuccess = false;
+        std::vector<Vec2f> orderedPoints;
         if ((clusteredLines.size() >= 2) && (clusterSuccess)){ // obviously no reason to find corners on fewer than two lines
             std::vector<Vec2f> intersectionPoints = computeCorners(clusteredLines, myImage);
-            std::vector<Vec2f> orderedPoints = putPointsInOrder(intersectionPoints);
+            orderedPoints = putPointsInOrder(intersectionPoints);
+            intersectionSuccess = true; // update success handle
 
-            // draw polygon
+            // draw polygon; move this into subfunction
             for (int i = 0; i < intersectionPoints.size()-1; i++){
                 line(myImage, Point(round(orderedPoints[i][0]), round(orderedPoints[i][1])), Point(round(orderedPoints[i+1][0]), round(orderedPoints[i+1][1])), Scalar(255,255,0), 2, 8);
             }
             line(myImage, Point(round(orderedPoints[0][0]), round(orderedPoints[0][1])), Point(round(orderedPoints[intersectionPoints.size()-1][0]), round(orderedPoints[intersectionPoints.size()-1][1])), Scalar(255,255,0), 2, 8); // closing line
+        }
+
+        // do perspective transformation; right now only do perspective if I have exactly 4 points
+        bool transformationSuccess = false;
+        Mat correctedImage;
+        if (orderedPoints.size() == 4 && intersectionSuccess){
+             correctedImage = doTransformation(orderedPoints, myImage);
         }
 
         // update display
@@ -136,6 +147,7 @@ int main (){
     destroyWindow("videoWindow");   // destroy the video window(s)
     destroyWindow("tracked area of interest");
     destroyWindow("canny edge detection");
+    destroyWindow("transformed image");
 
     int dummy;
     return dummy;
@@ -153,6 +165,7 @@ VideoCapture setupWebcam(){
     return myVideoCapture;
 }
 
+
 /** =============================================================================
     description: displays single frame to window
     input: Mat
@@ -163,12 +176,14 @@ bool displayFrame(Mat image){
     return true;
 }
 
+
 /** =============================================================================
     description: tracks white blob in image and updates display image
     input: reference to pointer to IplImage
     returns: true if successful
 **/
 Mat trackObject(Mat myImage){
+    std::cout << "===================\n";
     // create copy of myImage and convert to HSV space
     Mat hsvImage;
     hsvImage.create(myImage.rows, myImage.cols, myImage.type());
@@ -216,6 +231,7 @@ Mat trackObject(Mat myImage){
     return closedImage;
 }
 
+
 /** =============================================================================
     description: computes the centroid and orientation of the single-channel image
     input: Mat (1 channel) image
@@ -223,7 +239,6 @@ Mat trackObject(Mat myImage){
 **/
 Mat computeCentroidAndOrientation(Mat inputImage){
 
-    std::cout << "===================\n";
     // calculate the moments of the thresholded image
     Moments momentsOfThreshold = moments(inputImage, false);
 
@@ -241,7 +256,7 @@ Mat computeCentroidAndOrientation(Mat inputImage){
     int xBar = (int)(m10 / m00); // typecast to int
     int yBar = (int)(m01 / m00); // typecast to int
 
-    std::cout << "centroid :" << xBar << ", " << yBar << "\n";
+    // std::cout << "centroid :" << xBar << ", " << yBar << "\n";
 
     // compute orientation from moments (see reference paper)
     double mu20 = (m20 / m00) - ((m10 * m10) / (m00));
@@ -249,7 +264,7 @@ Mat computeCentroidAndOrientation(Mat inputImage){
     double mu11 = (m11 / m00) - ((m10 * m01) / (m00));
     double theta = 0.5 * atan((2 * mu11) / (mu20 - mu02)); // radians
 
-    std::cout << "theta = " << theta << "\n";
+    // std::cout << "theta = " << theta << "\n";
 
     // create image to hold overlay drawing
     Mat overlayImage;
@@ -293,6 +308,7 @@ std::vector< std::vector< Point> > computeContours(Mat inputImage){
     findContours(contourImage, contours, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE); // consider playing with CV_CHAIN_APPROX_NONE (see documentation)
     return contours;
 }
+
 
 /** =============================================================================
     description: line detection using Canny edge detection and Hough Lines
@@ -342,9 +358,10 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
 //            i++; // put the iterator here so that I don't skip anything
 //        }
 //    }
-
+    std::cout << "Hough lines (" << lines.size() << ") :\n";
     return lines;
 }
+
 
 /** =============================================================================
     description: does clustering of all Hough lines in rho, theta space
@@ -374,21 +391,18 @@ std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
     Mat centers;
 
     // do kMeans
-//    kmeans(dataPoints, K, bestLabels, TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS, maxIterations, epsilon), attempts , KMEANS_RANDOM_CENTERS, centers );
     kmeans(dataPoints, K, bestLabels, TermCriteria(CV_TERMCRIT_ITER, maxIterations, epsilon), attempts , KMEANS_RANDOM_CENTERS, centers );
 
-    std::cout << "best labels is of size [" << bestLabels.rows << ", " << bestLabels.cols << "]\n";
-
     // for debugging:
-    // print Hough lines
+    // print Hough lines and labels
     for (int i = 0; i < lines.size(); i++){
-        std::cout << "\t[" << lines[i][0] << ", " << lines[i][1] << "] with label " << bestLabels.at<int>(i, 1) <<  "\n";
+        std::cout << "\t[" << lines[i][0] << ",\t " << lines[i][1] << "]\t with label " << bestLabels.at<int>(i, 1) <<  "\n";
     }
 
     // plot line clusters
     // convert Mat back to vector<Vec2f> and plot
     std::vector<Vec2f> clusteredLines;
-    std::cout << "clusteredLines(rho, theta):\n";
+    std::cout << "\nclustered lines(rho, theta):\n";
     for (int i = 0; i < centers.rows; i++){
         Vec2f center;
         center[0] = centers.at<float>(i,0);
@@ -398,7 +412,7 @@ std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
         // convert rho, theta to x1, y1, x2, y2; just for plotting
         float rho = center[0];
         float theta = center[1];
-        std::cout << "\t[" << rho << ", " << theta << "]\n";
+        std::cout << "\t[" << rho << ",\t " << theta << "]\n";
 
 //        if (rho < 0.001 && theta < 0.001){  // if rho and theta are both approx zero, its because that cluster doesn't have any element in it...
 //            continue;                       // ... so don't save it.
@@ -411,6 +425,7 @@ std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
     }
     return clusteredLines;
 }
+
 
 /** =============================================================================
     description: simple script to convert line in rho/theta format to ([x1, y1], [x2, y2]) format
@@ -455,6 +470,7 @@ Vec2f rhoTheta2SlopeIntercept(float rho, float theta){
     return output;
 }
 
+
 /** =============================================================================
     description: tries to find corners by computing intersections of lines
     input: vector of lines in rho/theta format
@@ -471,7 +487,7 @@ std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputI
     }
 
     // compute intersection point of each line with each other line
-    std::cout << "found intersections:\n";
+    std::cout << "\nintersection points:\n";
     std::vector <Vec2f> intersectionPoints;
     int k = 0;
     for (int i = 0; i < clusteredLines.size(); i++){
@@ -490,7 +506,7 @@ std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputI
                 temp[0] = xInt;
                 temp[1] = yInt;
                 intersectionPoints.push_back(temp);
-                std::cout << "\t [" << xInt << ", " << yInt << "]\n";
+                std::cout << "\t [" << xInt << ",\t " << yInt << "\t]\n";
 
                 // and plot
 //                circle(inputImage, Point(xInt, yInt), 5, Scalar(255,0,0), 2, 8);
@@ -498,9 +514,9 @@ std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputI
         }
     }
 
-    std::cout << "found " << intersectionPoints.size() << " intersection points\n";
     return intersectionPoints;
 }
+
 
 /** =============================================================================
     description: puts polygon points in order clockwise
@@ -508,8 +524,7 @@ std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputI
     returns: void
   **/
 std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints){
-    std::cout << "inside putPointsInOrder()\n";
-    std::cout << "\t number of intersection points = " << intersectionPoints.size() << "\n";
+    std::cout << "\nputting points in order;\n";
 
     std::vector< std::vector< float> > tempPoints;
 
@@ -521,7 +536,7 @@ std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints){
     }
     centroid[0] = centroid[0] / intersectionPoints.size();
     centroid[1] = centroid[1] / intersectionPoints.size();
-    std::cout << "\t centroid of intersection points = [" << centroid[0] << ", " << centroid[1] << "]\n";
+    //std::cout << "\t centroid of intersection points = [" << centroid[0] << ", " << centroid[1] << "]\n";
 
     // compute the heading from centroid to each point; order points by heading
     for (int i = 0; i < intersectionPoints.size(); i++){
@@ -535,7 +550,6 @@ std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints){
                 heading = heading-(M_PI/2);
             }
         }
-        std::cout << "\t\t heading = " << heading << "\n";
 
         // put heading in a new temp vector along with intersection point x,y
         // by putting heading in first column, I can easily sort later
@@ -550,14 +564,66 @@ std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints){
 
     // overwrite intersectionPoints with ordered points
     intersectionPoints.clear();
+    std::cout << "\t ordered points :\n";
     for (int i = 0; i < tempPoints.size(); i++){
         Vec2f orderedPoint;
         orderedPoint[0] = tempPoints[i][1];
         orderedPoint[1] = tempPoints[i][2];
-        std::cout << "\t\t[" << tempPoints[i][0] << ", " << tempPoints[i][1] << ", " << tempPoints[i][2] << "]\n";
+        std::cout << "\t[" << tempPoints[i][0] << ",\t " << tempPoints[i][1] << ",\t " << tempPoints[i][2] << "\t]\n";
         intersectionPoints.push_back(orderedPoint);
     }
 
     return intersectionPoints;
 }
 
+
+/** =============================================================================
+    description: performs perspective transformation of caputured image to rectangle
+            I am doing an perspective projection FROM "distorted image" (aka trapezoid shape)
+            TO "corrected image" (aka rectangluar 8.5 x 11 image)
+    input: vector of Vec2f points in distorted image and distorted image
+    returns: Mat of corrected image
+  **/
+Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage){
+    std::cout << "\nperforming perspective transformation:\n";
+
+    // declare and initialize variables
+    int numPoints = inputPoints.size();
+
+    Point2f distortedPoints[numPoints];
+    Point2f correctedPoints[numPoints];
+
+    Mat warpMatrix (3, 4, CV_32FC1);
+
+    // put input points from vector<Vec2f> into array of Point2f
+    for (int i = 0; i < numPoints; i++){
+        distortedPoints[i] = Point2f(inputPoints[i][0], inputPoints[i][1]);
+    }
+
+    // set output points ; there is a lot going wrong here.
+    // I know the points are in order around the perimeter of the blob but I don't know which one is "top left", "top right" etc.
+    // Also, I'm assuming that I'm looking at an 8.5 x 11 sheet of paper so, try to fit that in 640 x 480 w/out cropping
+    int shortSide = 479;
+    int longSide =round(shortSide * 11 / 8.5);
+
+    std::cout << "\t putting transformed image into image of size [" << longSide << ", " << shortSide << "]\n";
+    correctedPoints[0] = Point2f(0,         0);
+    correctedPoints[1] = Point2f(shortSide, 0);
+    correctedPoints[2] = Point2f(shortSide, longSide);
+    correctedPoints[3] = Point2f(0,         longSide);
+
+    Mat outputImage = Mat::zeros(longSide, shortSide, inputImage.type());
+
+    warpMatrix = getPerspectiveTransform(distortedPoints, correctedPoints);
+
+    std::cout << "\t warpMatrix = \n";
+    for (int i = 0; i < 3; i++){
+        std::cout << "\t| " << warpMatrix.at<float>(i,0) << ",\t " << warpMatrix.at<float>(i,1) << ",\t " << warpMatrix.at<float>(i, 2) << ",\t " << warpMatrix.at<float>(i,3) << "\t|\n";
+    }
+
+    warpPerspective(inputImage, outputImage, warpMatrix, outputImage.size());
+
+    imshow("transformed image", outputImage);
+
+    return outputImage;
+}

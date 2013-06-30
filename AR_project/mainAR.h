@@ -39,6 +39,7 @@ std::vector<Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputIm
 
 std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints);
 
+Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage);
 
 
 #endif // MAINAR_H
