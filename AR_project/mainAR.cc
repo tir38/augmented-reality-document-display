@@ -436,50 +436,6 @@ std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
 
 
 /** =============================================================================
-    description: simple script to convert line in rho/theta format to ([x1, y1], [x2, y2]) format
-    input: doubles rho and theta
-    returns: vector<float>(4) : {x1, y1, x2, y2}
-**/
-Vec4f rhoTheta2XY(float rho, float theta){
-
-   float a = cos(theta);
-   float b = sin(theta);
-   float x0 = a*rho;
-   float y0 = b*rho;
-
-   Vec4f xy;
-   xy(0) = (x0 + 1000*(-b));
-   xy(1) = (y0 + 1000*(a));
-   xy(2) = (x0 - 1000*(-b));
-   xy(3) = (y0 - 1000*(a));
-
-    return xy;
-}
-
-
-/** =============================================================================
-    description: simple script to convert line in rho/theta format to y = mx + b format
-    input: doubles rho and theta
-    returns: vector<float>(2) : {m, b}
-**/
-Vec2f rhoTheta2SlopeIntercept(float rho, float theta){
-    // call rhoTheta2XY() first;
-    // and then compute slope and intercept
-
-    Vec4f xy;
-    xy = rhoTheta2XY(rho, theta);
-
-    float m = (xy[3] - xy[1]) / (xy[2] - xy[0]); // rise / run
-    float b = xy[3] - (m*xy[2]);
-
-    Vec2f output;
-    output[0] = m;
-    output[1] = b;
-    return output;
-}
-
-
-/** =============================================================================
     description: tries to find corners by computing intersections of lines
     input: vector of lines in rho/theta format
     returns: void
@@ -520,65 +476,6 @@ std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputI
 //                circle(inputImage, Point(xInt, yInt), 5, Scalar(255,0,0), 2, 8);
             }
         }
-    }
-
-    return intersectionPoints;
-}
-
-
-/** =============================================================================
-    description: puts polygon points in order clockwise
-    input: vector of Vec2f points
-    returns: void
-  **/
-std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints){
-    std::cout << "\nputting points in order;\n";
-
-    std::vector< std::vector< float> > tempPoints;
-
-    // compute centroid of all points
-    Vec2f centroid;
-    for (int i = 0; i < intersectionPoints.size(); i++){
-        centroid[0] = centroid[0] + intersectionPoints[i][0];
-        centroid[1] = centroid[1] + intersectionPoints[i][1];
-    }
-    centroid[0] = centroid[0] / intersectionPoints.size();
-    centroid[1] = centroid[1] / intersectionPoints.size();
-    //std::cout << "\t centroid of intersection points = [" << centroid[0] << ", " << centroid[1] << "]\n";
-
-    // compute the heading from centroid to each point; order points by heading
-    for (int i = 0; i < intersectionPoints.size(); i++){
-        float heading = atan((intersectionPoints[i][1] - centroid[1]) / (intersectionPoints[i][0] - centroid[0]));
-        if (intersectionPoints[i][0] - centroid[0] < 0){
-            heading = heading* (-1);
-            if (heading > 0){
-                heading = heading+(M_PI/2);
-            }
-            else{
-                heading = heading-(M_PI/2);
-            }
-        }
-
-        // put heading in a new temp vector along with intersection point x,y
-        // by putting heading in first column, I can easily sort later
-        std::vector<float> tempV;
-        float tempA[] = {heading, intersectionPoints[i][0], intersectionPoints[i][1]};
-        tempV.assign (tempA,tempA+3);   // assigning from array.
-        tempPoints.push_back(tempV); // put
-    }
-
-    // now do ordering
-    std::sort(tempPoints.begin(), tempPoints.end());
-
-    // overwrite intersectionPoints with ordered points
-    intersectionPoints.clear();
-    std::cout << "\t ordered points :\n";
-    for (int i = 0; i < tempPoints.size(); i++){
-        Vec2f orderedPoint;
-        orderedPoint[0] = tempPoints[i][1];
-        orderedPoint[1] = tempPoints[i][2];
-        std::cout << "\t[" << tempPoints[i][0] << ",\t " << tempPoints[i][1] << ",\t " << tempPoints[i][2] << "\t]\n";
-        intersectionPoints.push_back(orderedPoint);
     }
 
     return intersectionPoints;
@@ -638,41 +535,41 @@ Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage){
 
 
 void zBarTest(){
-    std::cout << "doing zBar:\n";
+    //    std::cout << "doing zBar:\n";
 
-    //setup reader
-    ImageScanner myScanner;
+    //    //setup reader
+    //    ImageScanner myScanner;
 
-    // configure the reader
-    myScanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
+    //    // configure the reader
+    //    myScanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
 
-    // obtain image data
-    std::string fileName = "myImage.png";
-    Magick::Image myMagick(fileName);
-    int width = myMagick.columns();   // extract dimensions
-    int height = myMagick.rows();
-    Magick::Blob blob;              // extract the raw data
-    myMagick.modifyImage();
-    myMagick.write(&blob, "GRAY", 8);
-    const void *raw = blob.data();
-    std::cout << "\t size:" << width << ", " << height << "\n";
+    //    // obtain image data
+    //    std::string fileName = "myImage.png";
+    //    Magick::Image myMagick(fileName);
+    //    int width = myMagick.columns();   // extract dimensions
+    //    int height = myMagick.rows();
+    //    Magick::Blob blob;              // extract the raw data
+    //    myMagick.modifyImage();
+    //    myMagick.write(&blob, "GRAY", 8);
+    //    const void *raw = blob.data();
+    //    std::cout << "\t size:" << width << ", " << height << "\n";
 
-    // wrap image data
-    Image image(width, height, "Y800", raw, width * height);
+    //    // wrap image data
+    //    Image image(width, height, "Y800", raw, width * height);
 
-    // scan the image for barcodes
-    int n = myScanner.scan(image);
+    //    // scan the image for barcodes
+    //    int n = myScanner.scan(image);
 
-    // extract results
-    for(Image::SymbolIterator symbol = image.symbol_begin();
-        symbol != image.symbol_end();
-        ++symbol) {
-        // do something useful with results
-        std::cout << "decoded " << symbol->get_type_name() << " symbol \"" << symbol->get_data() << '"' << "\n";
+    //    // extract results
+    //    for(Image::SymbolIterator symbol = image.symbol_begin();
+    //        symbol != image.symbol_end();
+    //        ++symbol) {
+    //        // do something useful with results
+    //        std::cout << "decoded " << symbol->get_type_name() << " symbol \"" << symbol->get_data() << '"' << "\n";
 
-    }
+    //    }
 
-    // clean up
-    image.set_data(NULL, 0);
+    //    // clean up
+    //    image.set_data(NULL, 0);
 
 }

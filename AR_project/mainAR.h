@@ -14,7 +14,6 @@
 #include "opencv2/opencv.hpp"
 
 
-
 using namespace cv;
 
 int main();
@@ -33,17 +32,22 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
 
 std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage);
 
-Vec4f rhoTheta2XY(float rho, float theta);
-
-Vec2f rhoTheta2SlopeIntercept(float rho, float theta);
-
-std::vector<Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputImage);
-
-std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints);
 
 Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage);
 
 void zBarTest();
+
+std::vector<Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputImage);
+
+
+
+// helper methods
+
+Vec4f rhoTheta2XY(float rho, float theta);
+
+Vec2f rhoTheta2SlopeIntercept(float rho, float theta);
+
+std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints);
 
 
 #endif // MAINAR_H

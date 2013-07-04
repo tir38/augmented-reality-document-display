@@ -6,5 +6,5 @@ CFLAGS=`pkg-config --cflags opencv, Magick++`		# compiler flags
 LIBS=`pkg-config --libs opencv, zbar, Magick++`		# libraries
 	
 # project name : list of .cc files
-ARproject: mainAR.cc					
-	$(CC) $(CFLAGS) -o ARproject mainAR.cc $(LIBS)
+ARproject: mainAR.cc helpers.cc
+	$(CC) $(CFLAGS) -o ARproject mainAR.cc helpers.cc $(LIBS)
