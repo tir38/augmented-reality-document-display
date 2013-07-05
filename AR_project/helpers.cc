@@ -112,3 +112,31 @@ std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints){
     return intersectionPoints;
 }
 
+/** =============================================================================
+  @brief converts image from Mat format (openCV format) to Image format (zBar/ImageMagick format)
+**/
+Image convertImageToZbarFormat(Mat inputImage){
+
+    uint width = inputImage.cols;
+    uint height = inputImage.rows;
+    uchar* raw = inputImage.data;
+    string format = "Y800";
+
+    Image outputImage(width, height, format, raw, width*height);
+
+    return outputImage;
+}
+
+
+/** =============================================================================
+**/
+Mat loadDisplayImage(std::string filename){
+
+    // this is where i will determine what file type i am trying to load
+    // and do any neccessary conversions into readable format(s)
+
+    Mat overlayImage = imread(filename);
+    std::cout << "\t overlay image size =" << overlayImage.cols << ", " << overlayImage.rows << "]\n";
+
+    return overlayImage;
+}

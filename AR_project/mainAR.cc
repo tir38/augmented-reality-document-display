@@ -20,6 +20,7 @@ int main (){
     int displayPeriod   = 3;                           // number of 10 msec cycles
     int mainPeriod      = 1;                            // number of 10 msec cycles
     int trackPeriod     = 3;                           // number of 10 msec cycles
+    int overlayPeriod   = 20;
     int resetCounter    = displayPeriod * mainPeriod * trackPeriod;
     int counter = 0;
 
@@ -39,7 +40,8 @@ int main (){
     moveWindow("canny edge detection", 750,20);
     namedWindow("transformed image",CV_WINDOW_AUTOSIZE);
     moveWindow("transformed image", 750,20);
-
+    namedWindow("inverse perspective window", CV_WINDOW_AUTOSIZE);
+    moveWindow("inverse perspective window", 750, 20);
 
     // setup trackbars and starting values
     int cannyThres1 = 0;
@@ -109,26 +111,63 @@ int main (){
         std::vector<Vec2f> orderedPoints;
         if ((clusteredLines.size() >= 2) && (clusterSuccess)){ // obviously no reason to find corners on fewer than two lines
             std::vector<Vec2f> intersectionPoints = computeCorners(clusteredLines, myImage);
-            orderedPoints = putPointsInOrder(intersectionPoints);
-            intersectionSuccess = true; // update success handle
 
-            // draw polygon; move this into subfunction
-            for (int i = 0; i < intersectionPoints.size()-1; i++){
+            if (intersectionPoints.size() == 4) {
+                orderedPoints = putPointsInOrder(intersectionPoints);
+                intersectionSuccess = true; // update success handle
+
+                // draw polygon; move this into subfunction
+                for (int i = 0; i < intersectionPoints.size()-1; i++){
                 line(myImage, Point(round(orderedPoints[i][0]), round(orderedPoints[i][1])), Point(round(orderedPoints[i+1][0]), round(orderedPoints[i+1][1])), Scalar(255,255,0), 2, 8);
             }
-            line(myImage, Point(round(orderedPoints[0][0]), round(orderedPoints[0][1])), Point(round(orderedPoints[intersectionPoints.size()-1][0]), round(orderedPoints[intersectionPoints.size()-1][1])), Scalar(255,255,0), 2, 8); // closing line
+                line(myImage, Point(round(orderedPoints[0][0]), round(orderedPoints[0][1])), Point(round(orderedPoints[intersectionPoints.size()-1][0]), round(orderedPoints[intersectionPoints.size()-1][1])), Scalar(255,255,0), 2, 8); // closing line
+            }
         }
 
         // do perspective transformation; right now only do perspective if I have exactly 4 points
         bool transformationSuccess = false;
         Mat correctedImage;
+        Mat warpMatrix (3, 4, CV_32FC1);
+
         if (orderedPoints.size() == 4 && intersectionSuccess){
-             correctedImage = doTransformation(orderedPoints, myImage);
+             correctedImage = doTransformation(orderedPoints, myImage, warpMatrix);
+
+             std::cout << "\t warpMatrix = \n";
+             for (int i = 0; i < 3; i++){
+                 std::cout << "\t| " << warpMatrix.at<float>(i,0) << ",\t " << warpMatrix.at<float>(i,1) << ",\t " << warpMatrix.at<float>(i, 2) << ",\t " << warpMatrix.at<float>(i,3) << "\t|\n";
+             }
+
              transformationSuccess = true;
         }
 
-        // read QR code from corrected image
-        zBarTest();
+//        // read QR code from corrected image
+//        if (transformationSuccess){
+
+//           Image convertedImage = convertImageToZbarFormat(myImage);
+//           if (convertedImage.get_width() > 0 && convertedImage.get_height() > 0){
+//               Image* pointerToAnotherImage = &convertedImage;
+//               std::string fileName = readQRCode(pointerToAnotherImage);
+//               std::cout << fileName << "\n";
+//            }
+//        }
+        std::string filename = "lena_color_sized.jpg";
+
+        // get file to display
+        Mat overlayImage;
+        if (transformationSuccess && (overlayPeriod %10 == 0)){
+            std::cout << "\ndoing overlay:\n";
+            overlayImage =  loadDisplayImage(filename);
+        }
+
+        // transform overlay down to image myImage perspective and merge
+        if (overlayImage.data){
+            std::cout << "\nloaded overlay, doing transformation:\n";
+            // crop/buffer/scale overlay to match 8.5 x 11 image; skip now, using correct ratio/size image
+            Mat perspectiveOverlay;
+            perspectiveOverlay.create(myImage.rows, myImage.cols, CV_8UC3 );
+            doReverseTransformation(overlayImage, warpMatrix, perspectiveOverlay);
+            myImage = myImage + perspectiveOverlay;
+        }
 
         // update display
         if(counter % displayPeriod == 0){
@@ -156,6 +195,7 @@ int main (){
     destroyWindow("tracked area of interest");
     destroyWindow("canny edge detection");
     destroyWindow("transformed image");
+    destroyWindow("inverse perspective window");
 
     int dummy;
     return dummy;
@@ -489,7 +529,7 @@ std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputI
     input: vector of Vec2f points in distorted image and distorted image
     returns: Mat of corrected image
   **/
-Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage){
+Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage, Mat& warpMatrix){
     std::cout << "\nperforming perspective transformation:\n";
 
     // declare and initialize variables
@@ -497,8 +537,6 @@ Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage){
 
     Point2f distortedPoints[numPoints];
     Point2f correctedPoints[numPoints];
-
-    Mat warpMatrix (3, 4, CV_32FC1);
 
     // put input points from vector<Vec2f> into array of Point2f
     for (int i = 0; i < numPoints; i++){
@@ -521,11 +559,6 @@ Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage){
 
     warpMatrix = getPerspectiveTransform(distortedPoints, correctedPoints);
 
-    std::cout << "\t warpMatrix = \n";
-    for (int i = 0; i < 3; i++){
-        std::cout << "\t| " << warpMatrix.at<float>(i,0) << ",\t " << warpMatrix.at<float>(i,1) << ",\t " << warpMatrix.at<float>(i, 2) << ",\t " << warpMatrix.at<float>(i,3) << "\t|\n";
-    }
-
     warpPerspective(inputImage, outputImage, warpMatrix, outputImage.size());
 
     imshow("transformed image", outputImage);
@@ -533,43 +566,38 @@ Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage){
     return outputImage;
 }
 
+/** =============================================================================
 
-void zBarTest(){
-    //    std::cout << "doing zBar:\n";
+**/
+std::string  readQRCode(Image* inputImage){
+        std::cout << "\ndoing readQRCode:\n";
 
-    //    //setup reader
-    //    ImageScanner myScanner;
+//        //setup reader
+//        ImageScanner myScanner;
 
-    //    // configure the reader
-    //    myScanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
+//        // configure the reader
+//        myScanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
 
-    //    // obtain image data
-    //    std::string fileName = "myImage.png";
-    //    Magick::Image myMagick(fileName);
-    //    int width = myMagick.columns();   // extract dimensions
-    //    int height = myMagick.rows();
-    //    Magick::Blob blob;              // extract the raw data
-    //    myMagick.modifyImage();
-    //    myMagick.write(&blob, "GRAY", 8);
-    //    const void *raw = blob.data();
-    //    std::cout << "\t size:" << width << ", " << height << "\n";
+//        // scan the image for barcodes
+//        int n = myScanner.scan(*inputImage); // dereference incoming pointer
 
-    //    // wrap image data
-    //    Image image(width, height, "Y800", raw, width * height);
+//        // extract results
+//        for(Image::SymbolIterator symbol = inputImage->symbol_begin(); symbol != inputImage->symbol_end(); ++symbol) {
+//            // do something useful with results
+//            std::cout << "decoded " << symbol->get_type_name() << " symbol \"" << symbol->get_data() << '"' << "\n";
+//        }
 
-    //    // scan the image for barcodes
-    //    int n = myScanner.scan(image);
+        // clean up
+//        inputImage.set_data(NULL, 0);
+}
 
-    //    // extract results
-    //    for(Image::SymbolIterator symbol = image.symbol_begin();
-    //        symbol != image.symbol_end();
-    //        ++symbol) {
-    //        // do something useful with results
-    //        std::cout << "decoded " << symbol->get_type_name() << " symbol \"" << symbol->get_data() << '"' << "\n";
 
-    //    }
+/** =============================================================================
 
-    //    // clean up
-    //    image.set_data(NULL, 0);
+**/
+void doReverseTransformation(Mat overlayImage, Mat warpMatrix, Mat& perspectiveOverlay){
+
+    warpPerspective(overlayImage, perspectiveOverlay, warpMatrix, Size(perspectiveOverlay.cols, perspectiveOverlay.rows), WARP_INVERSE_MAP, BORDER_TRANSPARENT);
+    imshow("inverse perspective window", perspectiveOverlay);
 
 }
