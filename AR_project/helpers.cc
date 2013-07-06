@@ -4,7 +4,7 @@
 # include <stdio.h>     // for basic cout
 # include "math.h"      // for arctan
 # include <algorithm>   // for sort
-# include <Magick++.h>   // for zbar: QR code scanning
+//# include <Magick++.h>   // for zbar: QR code scanning
 # include <zbar.h>       // for zbar
 
 using namespace cv;
@@ -112,20 +112,6 @@ std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints){
     return intersectionPoints;
 }
 
-/** =============================================================================
-  @brief converts image from Mat format (openCV format) to Image format (zBar/ImageMagick format)
-**/
-Image convertImageToZbarFormat(Mat inputImage){
-
-    uint width = inputImage.cols;
-    uint height = inputImage.rows;
-    uchar* raw = inputImage.data;
-    string format = "Y800";
-
-    Image outputImage(width, height, format, raw, width*height);
-
-    return outputImage;
-}
 
 
 /** =============================================================================

@@ -4,7 +4,7 @@
 # include <stdio.h>     // for basic cout
 # include "math.h"      // for arctan
 # include <algorithm>   // for sort
-# include <Magick++.h>   // for zbar: QR code scanning
+//# include <Magick++.h>   // for zbar: QR code scanning
 # include <zbar.h>       // for zbar
 
 using namespace cv;
@@ -50,6 +50,11 @@ int main (){
     createTrackbar("Canny Low", "canny edge detection", &cannyThres1, 100);
     createTrackbar("Canny High", "canny edge detection", &cannyThresh2, 100);
     createTrackbar("Hough threshold", "canny edge detection", &houghThresh, 100);
+
+    // setup zBar reader
+    ImageScanner myScanner;     //setup reader
+    myScanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);     // configure the reader
+
 
     // ====================== MAIN LOOP ==========================
     while(true){
@@ -140,17 +145,18 @@ int main (){
              transformationSuccess = true;
         }
 
-//        // read QR code from corrected image
-//        if (transformationSuccess){
+        // read QR code from corrected image
+        std::string filename;
+        if (transformationSuccess){
+           if (correctedImage.cols > 0 && correctedImage.rows > 0){
+                filename = readQRCode(correctedImage, myScanner);
+                std::cout << "\t " << filename <<"\n";
 
-//           Image convertedImage = convertImageToZbarFormat(myImage);
-//           if (convertedImage.get_width() > 0 && convertedImage.get_height() > 0){
-//               Image* pointerToAnotherImage = &convertedImage;
-//               std::string fileName = readQRCode(pointerToAnotherImage);
-//               std::cout << fileName << "\n";
-//            }
-//        }
-        std::string filename = "lena_color_sized.jpg";
+                if (filename.size() > 0) {
+                    transformationSuccess = true;
+                }
+            }
+        }
 
         // get file to display
         Mat overlayImage;
@@ -163,8 +169,7 @@ int main (){
         if (overlayImage.data){
             std::cout << "\nloaded overlay, doing transformation:\n";
             // crop/buffer/scale overlay to match 8.5 x 11 image; skip now, using correct ratio/size image
-            Mat perspectiveOverlay;
-            perspectiveOverlay.create(myImage.rows, myImage.cols, CV_8UC3 );
+            Mat perspectiveOverlay(myImage.rows, myImage.cols, CV_8UC4, Scalar(0,0,0,0));
             doReverseTransformation(overlayImage, warpMatrix, perspectiveOverlay);
             myImage = myImage + perspectiveOverlay;
         }
@@ -247,9 +252,9 @@ Mat trackObject(Mat myImage){
     // do closing; I need to do closing to remove any text on page
     Mat closedImage;
     closedImage.create(myImage.rows, myImage.cols, CV_8U);                      // force to be 8bit unsigned, single channel
-    Size size(2,2);                                                             // create kernel
+    Size size(4,4);                                                             // create kernel
     Mat closingKernel = getStructuringElement(MORPH_RECT, size, Point(-1,-1));
-    int closingIterations = 3;
+    int closingIterations = 3; // may need to increase for large QR codes
     morphologyEx(thresholdImage, closedImage, MORPH_CLOSE, closingKernel, Point(-1,-1), closingIterations, BORDER_CONSTANT, morphologyDefaultBorderValue()); // basically use default parameters
 
     // compute centroid and blob orientation and draw
@@ -567,28 +572,46 @@ Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage, Mat& warpMa
 }
 
 /** =============================================================================
-
+code for this was pulled from https://github.com/rportugal/opencv-zbar
 **/
-std::string  readQRCode(Image* inputImage){
+std::string  readQRCode(Mat inputImage, ImageScanner& myScanner){
         std::cout << "\ndoing readQRCode:\n";
 
-//        //setup reader
-//        ImageScanner myScanner;
+        Mat myGrayscaleImage;
 
-//        // configure the reader
-//        myScanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
+        cvtColor(inputImage, myGrayscaleImage, CV_BGR2GRAY);
 
-//        // scan the image for barcodes
-//        int n = myScanner.scan(*inputImage); // dereference incoming pointer
+        // Obtain image data
+        int width = myGrayscaleImage.cols;
+        int height = myGrayscaleImage.rows;
+        uchar *raw = (uchar *)(myGrayscaleImage.data);
 
-//        // extract results
-//        for(Image::SymbolIterator symbol = inputImage->symbol_begin(); symbol != inputImage->symbol_end(); ++symbol) {
-//            // do something useful with results
-//            std::cout << "decoded " << symbol->get_type_name() << " symbol \"" << symbol->get_data() << '"' << "\n";
-//        }
+        // Wrap image data
+        Image image(width, height, "Y800", raw, width * height);
 
-        // clean up
-//        inputImage.set_data(NULL, 0);
+        // Scan the image for barcodes
+        myScanner.scan(image);
+
+        // Extract results
+        std::string outputString;
+        int counter = 0;
+        for (Image::SymbolIterator symbol = image.symbol_begin(); symbol != image.symbol_end(); ++symbol) {
+            time_t now;
+            tm *current;
+            now = time(0);
+            current = localtime(&now);
+
+            // do something useful with results
+//            std::cout    << "[" << current->tm_hour << ":" << current->tm_min << ":" << std::setw(2) << std::setfill('0') << current->tm_sec << "] " << counter << " "
+//                    << "decoded " << symbol->get_type_name()
+//                    << " symbol \"" << symbol->get_data() << '"' << std::endl;
+
+            outputString = symbol->get_data();
+
+            counter++;
+        }
+
+        return outputString;
 }
 
 
@@ -597,7 +620,12 @@ std::string  readQRCode(Image* inputImage){
 **/
 void doReverseTransformation(Mat overlayImage, Mat warpMatrix, Mat& perspectiveOverlay){
 
-    warpPerspective(overlayImage, perspectiveOverlay, warpMatrix, Size(perspectiveOverlay.cols, perspectiveOverlay.rows), WARP_INVERSE_MAP, BORDER_TRANSPARENT);
-    imshow("inverse perspective window", perspectiveOverlay);
+    warpPerspective(overlayImage,
+                    perspectiveOverlay,
+                    warpMatrix,
+                    Size(perspectiveOverlay.cols, perspectiveOverlay.rows),
+                    WARP_INVERSE_MAP,
+                    BORDER_TRANSPARENT);
 
+    imshow("inverse perspective window", perspectiveOverlay);
 }

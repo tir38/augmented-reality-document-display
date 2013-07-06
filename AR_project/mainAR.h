@@ -12,7 +12,7 @@
 #include "opencv2/objdetect/objdetect.hpp"
 #include "opencv2/legacy/compat.hpp"
 #include "opencv2/opencv.hpp"
-# include <Magick++.h>   // for zbar: QR code scanning
+//# include <Magick++.h>   // for zbar: QR code scanning
 # include <zbar.h>       // for zbar
 
 
@@ -42,7 +42,7 @@ void zBarTest();
 
 std::vector<Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputImage);
 
-std::string readQRCode(Image* inputImage);
+std::string readQRCode(Mat inputImage, ImageScanner& myScanner);
 
 void doReverseTransformation(Mat overlayImage, Mat warpMatrix, Mat& perspectiveOverlay);
 
@@ -54,8 +54,6 @@ Vec4f rhoTheta2XY(float rho, float theta);
 Vec2f rhoTheta2SlopeIntercept(float rho, float theta);
 
 std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints);
-
-Image convertImageToZbarFormat(Mat inputImage);
 
 Mat loadDisplayImage(std::string filename);
 
