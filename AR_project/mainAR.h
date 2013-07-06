@@ -49,12 +49,15 @@ void doReverseTransformation(Mat overlayImage, Mat warpMatrix, Mat& perspectiveO
 
 
 // global variables
-
 extern bool centroidButtonState_;
 extern bool maskButtonState_;
+extern bool cannyButtonState_;
+extern bool houghButtonState_;
+extern int cannyThres1_;
+extern int cannyThresh2_;
+extern int houghThresh_;
 
 // helper methods
-
 Vec4f rhoTheta2XY(float rho, float theta);
 
 Vec2f rhoTheta2SlopeIntercept(float rho, float theta);
@@ -64,9 +67,10 @@ std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints);
 Mat loadDisplayImage(std::string filename);
 
 // GUI methods
-
 void callBackCentroidButton(int state, void* pointer);
 void callBackMaskButton(int state, void* pointer);
+void callBackCannyButton(int state, void* pointer);
+void callBackHoughButton(int state, void* pointer);
 
 
 

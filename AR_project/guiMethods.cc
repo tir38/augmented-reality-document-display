@@ -2,6 +2,8 @@
 
 using namespace std;
 
+/**
+**/
 void callBackCentroidButton(int state, void* pointer){
     if (state == 0){
         centroidButtonState_ = false;
@@ -10,15 +12,13 @@ void callBackCentroidButton(int state, void* pointer){
     else if (state == 1){
         centroidButtonState_ = true;
         namedWindow("centroid image", CV_WINDOW_AUTOSIZE);
-        moveWindow("centroid image", 800, 10);
-
+        moveWindow("centroid image", 100, 100);
     }
-
     std::cout << "centroidButtonState_ = " << centroidButtonState_ << "\n";
-
 }
 
-
+/**
+**/
 void callBackMaskButton(int state, void* pointer){
     if (state == 0){
         maskButtonState_ = false;
@@ -27,10 +27,46 @@ void callBackMaskButton(int state, void* pointer){
     else if (state == 1){
         maskButtonState_ = true;
         namedWindow("masked image", CV_WINDOW_AUTOSIZE);
-        moveWindow("masked image", 800, 40);
+        moveWindow("masked image", 200, 100);
     }
-
     std::cout << "maskButtonState_ = " << maskButtonState_ << "\n";
+}
+
+/**
+**/
+void callBackCannyButton(int state, void* pointer){
+    if (state == 0){
+        cannyButtonState_ = false;
+        destroyWindow("canny edge detection");
+    }
+    else if (state == 1){
+        cannyButtonState_ = true;
+        namedWindow("canny edge detection", CV_WINDOW_AUTOSIZE);
+        moveWindow("canny edge detection", 300,100);
+
+        cannyThres1_ = 0;
+        cannyThresh2_ = 95;
+        createTrackbar("Canny Low", "canny edge detection", &cannyThres1_, 100);
+        createTrackbar("Canny High", "canny edge detection", &cannyThresh2_, 100);
+    }
+    std::cout << "cannyButtonState_ = " << cannyButtonState_ << "\n";
+}
 
 
+/**
+**/
+void callBackHoughButton(int state, void* pointer){
+    if (state == 0){
+        houghButtonState_ = false;
+        destroyWindow("hough lines");
+    }
+    else if (state == 1){
+        houghButtonState_ = true;
+        namedWindow("hough lines", CV_WINDOW_AUTOSIZE);
+        moveWindow("hough lines", 400,100);
+
+        houghThresh_ = 80;
+        createTrackbar("Hough threshold", "hough lines", &houghThresh_, 100);
+    }
+    std::cout << "houghButtonState_ = " << houghButtonState_ << "\n";
 }

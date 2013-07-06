@@ -10,8 +10,16 @@
 using namespace cv;
 using namespace zbar;
 
-bool centroidButtonState_ = false;
-bool maskButtonState_ = false;
+// starting button states
+bool centroidButtonState_   = false;
+bool maskButtonState_       = false;
+bool cannyButtonState_      = false;
+bool houghButtonState_      = false;
+
+// starting threshold values
+int cannyThres1_    = 0;
+int cannyThresh2_   = 95;
+int houghThresh_    = 80;
 
 
 /** =============================================================================
@@ -39,24 +47,16 @@ int main (){
     // setup windows
     namedWindow("videoWindow", CV_WINDOW_AUTOSIZE);   // create a window
     moveWindow("videoWindow", 10, 10);                // move window to top left corner
-//    namedWindow("canny edge detection", CV_WINDOW_AUTOSIZE);
-//    moveWindow("canny edge detection", 750,20);
 //    namedWindow("transformed image",CV_WINDOW_AUTOSIZE);
 //    moveWindow("transformed image", 750,20);
 //    namedWindow("inverse perspective window", CV_WINDOW_AUTOSIZE);
 //    moveWindow("inverse perspective window", 750, 20);
 
-    // setup trackbars and starting values
-    int cannyThres1 = 0;
-    int cannyThresh2 = 95;
-    int houghThresh = 80;
-    createTrackbar("Canny Low", "canny edge detection", &cannyThres1, 100);
-    createTrackbar("Canny High", "canny edge detection", &cannyThresh2, 100);
-    createTrackbar("Hough threshold", "canny edge detection", &houghThresh, 100);
-
     // setup buttons
     createButton("show centroid and orientation",callBackCentroidButton, NULL, CV_CHECKBOX, 0); // centroid button, initial state = off
     createButton("show masked image", callBackMaskButton, NULL, CV_CHECKBOX, 0); //
+    createButton("show Canny edges", callBackCannyButton, NULL, CV_CHECKBOX, 0);
+    createButton("show Hough lines", callBackHoughButton, NULL, CV_CHECKBOX, 0);
 
     // setup zBar reader
     ImageScanner myScanner;     //setup reader
@@ -77,7 +77,7 @@ int main (){
         bool trackSuccess = false;
         Mat maskedImage; // setup masked image
         if(counter % trackPeriod == 0){
-            // do tracking
+            std::cout << "\ndo tracking:\n"; // do tracking
             Mat trackedImage = trackObject(myImage);            // track image
             maskedImage = createMask(myImage.clone(), trackedImage);    // create mask from tracked image and copy of myImage
             if (maskedImage.data){
@@ -85,21 +85,13 @@ int main (){
             }
         }
 
-//        // detect lines
-//        bool detectSuccess = false;
-//        std::vector< Vec2f> lines;
-//        if(trackSuccess){
-//            lines = lineDetection(maskedImage, cannyThres1, cannyThresh2, houghThresh);
-//            detectSuccess = true;
-
-////            // display Hough lines; move this into lineDetection subfunction
-////            for (int i = 0; i < lines.size(); i++){
-////                float rho = lines[i][0];
-////                float theta = lines[i][1];
-////                Vec4f lineEq = rhoTheta2XY(rho, theta); // convert rho, theta to x1, y1, x2, y2; just for plotting
-////                line(myImage, Point(round(lineEq(0)), round(lineEq(1))), Point(round(lineEq(2)), round(lineEq(3))), Scalar(0,255,0), 2, 8);
-////            }
-//        }
+        // detect lines
+        bool detectSuccess = false;
+        std::vector< Vec2f> lines;
+        if(trackSuccess){
+            lines = lineDetection(maskedImage, cannyThres1_, cannyThresh2_, houghThresh_);
+            detectSuccess = true;
+        }
 
 //        // do clustering on lines
 //        bool clusterSuccess = false;
@@ -216,7 +208,6 @@ int main (){
     // ====================== CLEANUP ==========================
     myVideoCapture.release();       // release the capture source
     destroyWindow("videoWindow");   // destroy the video window(s)
-//    destroyWindow("canny edge detection");
 //    destroyWindow("transformed image");
 //    destroyWindow("inverse perspective window");
 
@@ -350,7 +341,7 @@ Mat computeCentroidAndOrientation(Mat inputImage){
 /** =============================================================================
     description: creates mask from
     intput: inputImage 3 channel
-    output:
+    output: masked image 3 channel
 **/
 Mat createMask(Mat inputImage, Mat trackedImage){
 
@@ -370,11 +361,8 @@ Mat createMask(Mat inputImage, Mat trackedImage){
     maskedImage = inputImage.mul(trackedImage_C3); // elementwise multiplication; since tracked image is binary, multiplying input image by either 1 or 0, it preserves the ROI
 
     if (maskButtonState_){imshow("masked image", maskedImage);} // if button pressed show image
-
     return maskedImage;
 }
-
-
 
 
 
@@ -403,6 +391,7 @@ std::vector< std::vector< Point> > computeContours(Mat inputImage){
     returns: vector of Vec2f; lines in [rho, theta] format
 **/
 std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThresh2, int houghThresh){
+    std::cout << "do canny with threshold [" << cannyThresh1 << " , " << cannyThresh2 << "]\n";
 
     // make sure thresholds are positive values
     if (cannyThresh1 < 0){cannyThresh1 = 0;}
@@ -422,13 +411,14 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
     Mat edgesImage;
     int kernelSize = 3; // I'm looking for crisp thin edges, so use small kernel
 
-    // setup GUI
-    std::cout << "about to do canny with thresh [" << cannyThresh1 << " , " << cannyThresh2 << "]\n";
     Canny(blurImage, edgesImage, cannyThresh1, cannyThresh2, kernelSize);
 
     // visualize Canny edges
-    imshow("canny edge detection", edgesImage);
+    if(cannyButtonState_){imshow("canny edge detection", edgesImage);} // if button pressed, show canny edges
     // -------------- done with Canny edges
+
+
+    std::cout << "do hough lines with threshold [" << houghThresh << "]\n";
 
     // find Hough lines; because the edge detection is really crisp, we can jack up the Hough threshold
     double rho      = 2;
@@ -437,6 +427,18 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
     HoughLines(edgesImage, lines, rho, theta, houghThresh, 0, 0);
 
     std::cout << "Hough lines (" << lines.size() << ") :\n";
+
+    // display Hough lines; move this into lineDetection subfunction
+    if (houghButtonState_){
+        for (int i = 0; i < lines.size(); i++){
+            float rho = lines[i][0];
+            float theta = lines[i][1];
+            Vec4f lineEq = rhoTheta2XY(rho, theta); // convert rho, theta to x1, y1, x2, y2; just for plotting
+            line(inputImage, Point(round(lineEq(0)), round(lineEq(1))), Point(round(lineEq(2)), round(lineEq(3))), Scalar(0,255,0), 2, 8);
+        }
+
+        imshow("hough lines", inputImage);
+    }
     return lines;
 }
 
