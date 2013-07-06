@@ -122,7 +122,7 @@ Mat loadDisplayImage(std::string filename){
     // and do any neccessary conversions into readable format(s)
 
     Mat overlayImage = imread(filename);
-    std::cout << "\t overlay image size =" << overlayImage.cols << ", " << overlayImage.rows << "]\n";
+    std::cout << "\t overlay image size = [" << overlayImage.cols << ", " << overlayImage.rows << "]\n";
 
     return overlayImage;
 }

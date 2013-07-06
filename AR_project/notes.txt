@@ -19,6 +19,7 @@ To Do (ideas):
 9.  [ ] for submethods that return Mat, figure out how to determine if submethod fails (i.e. if Mat == NULL ??)
 10. [ ] Canny + Hough(80) + kMeans(4) is working pretty well for line detection.
         However, consider making robust by comparing lines w/ corner detection.
+11. [ ] create cmake file for makefile
 
 Notes:
 -----------

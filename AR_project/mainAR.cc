@@ -79,8 +79,6 @@ int main (){
             temp.push_back(trackedImage);
             temp.push_back(trackedImage);
             temp.push_back(trackedImage);
-
-            std::cout<< "about to merge\n";
             merge(temp, trackedImage_C3);
 
             maskedImage = myImage.mul(trackedImage_C3); // elementwise multiplication; since tracked image is binary, multiplying input image by either 1 or 0, it preserves the ROI
@@ -142,36 +140,58 @@ int main (){
                  std::cout << "\t| " << warpMatrix.at<float>(i,0) << ",\t " << warpMatrix.at<float>(i,1) << ",\t " << warpMatrix.at<float>(i, 2) << ",\t " << warpMatrix.at<float>(i,3) << "\t|\n";
              }
 
-             transformationSuccess = true;
+             // confirm successful transformation
+             if (correctedImage.cols > 0 && correctedImage.rows > 0){     // if corrected inage
+                transformationSuccess = true;
+             }
         }
 
         // read QR code from corrected image
-        std::string filename;
-        if (transformationSuccess){
-           if (correctedImage.cols > 0 && correctedImage.rows > 0){
-                filename = readQRCode(correctedImage, myScanner);
-                std::cout << "\t " << filename <<"\n";
+        std::string filename;                                           // to store filename from QR code
+        bool readQRcodeSuccess = false;
+        if (transformationSuccess){                                     // if transform succeeded
+            std::cout << "\ndoing readQRCode:\n";
+            filename = readQRCode(correctedImage, myScanner);
 
-                if (filename.size() > 0) {
-                    transformationSuccess = true;
-                }
+            // confirm succesful QR read
+            if (filename.size() > 0) {
+                readQRcodeSuccess = true;
             }
         }
 
-        // get file to display
-        Mat overlayImage;
-        if (transformationSuccess && (overlayPeriod %10 == 0)){
-            std::cout << "\ndoing overlay:\n";
+        /** ----- general format -----------:
+            declare any variables
+            bool currentTaskSuccess = false;
+
+            if (previousTaskSuccess){
+                std::cout << "\ndoing current task:\n";
+                output = doTask(inputs);
+
+                // confirm successful task
+                if (whatever) {
+                    currentTaskSuccess = true;
+                }
+            }
+          **/
+
+        // load file to display
+        Mat overlayImage;                                           // to store loaded overlay image
+        bool loadFileSuccess = false;
+        if (readQRcodeSuccess && (overlayPeriod %10 == 0)){
+            std::cout << "\nloading overlay image:\n";
             overlayImage =  loadDisplayImage(filename);
+
+            if(overlayImage.cols > 0 && overlayImage.rows > 0){
+                 loadFileSuccess = true;
+            }
         }
 
         // transform overlay down to image myImage perspective and merge
-        if (overlayImage.data){
-            std::cout << "\nloaded overlay, doing transformation:\n";
-            // crop/buffer/scale overlay to match 8.5 x 11 image; skip now, using correct ratio/size image
-            Mat perspectiveOverlay(myImage.rows, myImage.cols, CV_8UC4, Scalar(0,0,0,0));
-            doReverseTransformation(overlayImage, warpMatrix, perspectiveOverlay);
-            myImage = myImage + perspectiveOverlay;
+        Mat perspectiveOverlay(myImage.rows, myImage.cols, CV_8UC4, Scalar(0,0,0,0)); // to store inverse warped overlay
+        if (overlayImage.data){                                                       // if overlay was loaded orrectly
+            std::cout << "\ndoing transformation:\n";
+            doReverseTransformation(overlayImage, warpMatrix, perspectiveOverlay);  // do reverse transform
+            myImage = myImage + perspectiveOverlay;                                 // merge warped overlay with myImage
         }
 
         // update display
@@ -575,7 +595,6 @@ Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage, Mat& warpMa
 code for this was pulled from https://github.com/rportugal/opencv-zbar
 **/
 std::string  readQRCode(Mat inputImage, ImageScanner& myScanner){
-        std::cout << "\ndoing readQRCode:\n";
 
         Mat myGrayscaleImage;
 
@@ -595,22 +614,11 @@ std::string  readQRCode(Mat inputImage, ImageScanner& myScanner){
         // Extract results
         std::string outputString;
         int counter = 0;
-        for (Image::SymbolIterator symbol = image.symbol_begin(); symbol != image.symbol_end(); ++symbol) {
-            time_t now;
-            tm *current;
-            now = time(0);
-            current = localtime(&now);
-
-            // do something useful with results
-//            std::cout    << "[" << current->tm_hour << ":" << current->tm_min << ":" << std::setw(2) << std::setfill('0') << current->tm_sec << "] " << counter << " "
-//                    << "decoded " << symbol->get_type_name()
-//                    << " symbol \"" << symbol->get_data() << '"' << std::endl;
-
+        for (Image::SymbolIterator symbol = image.symbol_begin(); symbol != image.symbol_end(); ++symbol){
             outputString = symbol->get_data();
-
-            counter++;
         }
 
+        std::cout << "\t " << outputString <<"\n";
         return outputString;
 }
 
@@ -619,6 +627,7 @@ std::string  readQRCode(Mat inputImage, ImageScanner& myScanner){
 
 **/
 void doReverseTransformation(Mat overlayImage, Mat warpMatrix, Mat& perspectiveOverlay){
+
 
     warpPerspective(overlayImage,
                     perspectiveOverlay,

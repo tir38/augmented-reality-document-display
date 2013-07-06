@@ -35,7 +35,6 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
 
 std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage);
 
-
 Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage, Mat& warpMatrix);
 
 void zBarTest();
