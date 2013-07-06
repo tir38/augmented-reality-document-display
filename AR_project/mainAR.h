@@ -29,6 +29,8 @@ Mat trackObject(Mat myImage);
 
 Mat computeCentroidAndOrientation(Mat inputImage);
 
+Mat createMask(Mat inputImage, Mat trackedImage);
+
 std::vector< std::vector< Point> > computeContours(Mat myImage);
 
 std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThresh2, int houghThresh);
@@ -46,6 +48,11 @@ std::string readQRCode(Mat inputImage, ImageScanner& myScanner);
 void doReverseTransformation(Mat overlayImage, Mat warpMatrix, Mat& perspectiveOverlay);
 
 
+// global variables
+
+extern bool centroidButtonState_;
+extern bool maskButtonState_;
+
 // helper methods
 
 Vec4f rhoTheta2XY(float rho, float theta);
@@ -55,6 +62,12 @@ Vec2f rhoTheta2SlopeIntercept(float rho, float theta);
 std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints);
 
 Mat loadDisplayImage(std::string filename);
+
+// GUI methods
+
+void callBackCentroidButton(int state, void* pointer);
+void callBackMaskButton(int state, void* pointer);
+
 
 
 #endif // MAINAR_H

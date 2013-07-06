@@ -9,6 +9,11 @@
 
 using namespace cv;
 using namespace zbar;
+
+bool centroidButtonState_ = false;
+bool maskButtonState_ = false;
+
+
 /** =============================================================================
     description: main program
     input: none
@@ -34,14 +39,12 @@ int main (){
     // setup windows
     namedWindow("videoWindow", CV_WINDOW_AUTOSIZE);   // create a window
     moveWindow("videoWindow", 10, 10);                // move window to top left corner
-    namedWindow("tracked area of interest", CV_WINDOW_AUTOSIZE);
-    moveWindow("tracked area of interest", 800, 10);
-    namedWindow("canny edge detection", CV_WINDOW_AUTOSIZE);
-    moveWindow("canny edge detection", 750,20);
-    namedWindow("transformed image",CV_WINDOW_AUTOSIZE);
-    moveWindow("transformed image", 750,20);
-    namedWindow("inverse perspective window", CV_WINDOW_AUTOSIZE);
-    moveWindow("inverse perspective window", 750, 20);
+//    namedWindow("canny edge detection", CV_WINDOW_AUTOSIZE);
+//    moveWindow("canny edge detection", 750,20);
+//    namedWindow("transformed image",CV_WINDOW_AUTOSIZE);
+//    moveWindow("transformed image", 750,20);
+//    namedWindow("inverse perspective window", CV_WINDOW_AUTOSIZE);
+//    moveWindow("inverse perspective window", 750, 20);
 
     // setup trackbars and starting values
     int cannyThres1 = 0;
@@ -51,9 +54,16 @@ int main (){
     createTrackbar("Canny High", "canny edge detection", &cannyThresh2, 100);
     createTrackbar("Hough threshold", "canny edge detection", &houghThresh, 100);
 
+    // setup buttons
+    createButton("show centroid and orientation",callBackCentroidButton, NULL, CV_CHECKBOX, 0); // centroid button, initial state = off
+    createButton("show masked image", callBackMaskButton, NULL, CV_CHECKBOX, 0); //
+
     // setup zBar reader
     ImageScanner myScanner;     //setup reader
     myScanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);     // configure the reader
+
+
+    Mat overlayImage;                                           // to store loaded overlay image
 
 
     // ====================== MAIN LOOP ==========================
@@ -66,98 +76,106 @@ int main (){
         // track object
         bool trackSuccess = false;
         Mat maskedImage; // setup masked image
-        maskedImage.create(myImage.rows, myImage.cols, CV_8UC3);
         if(counter % trackPeriod == 0){
             // do tracking
-            Mat trackedImage = trackObject(myImage); // get tracked object (8 bit unsigned, single channel)
-
-            // create 3channel image where trackedImage is in each channel
-            Mat trackedImage_C3(myImage.rows, myImage.cols, myImage.type());
-
-            // creat temp vector of Mat to store replicated matrix
-            std::vector<Mat> temp;
-            temp.push_back(trackedImage);
-            temp.push_back(trackedImage);
-            temp.push_back(trackedImage);
-            merge(temp, trackedImage_C3);
-
-            maskedImage = myImage.mul(trackedImage_C3); // elementwise multiplication; since tracked image is binary, multiplying input image by either 1 or 0, it preserves the ROI
-            trackSuccess = true;
+            Mat trackedImage = trackObject(myImage);            // track image
+            maskedImage = createMask(myImage.clone(), trackedImage);    // create mask from tracked image and copy of myImage
+            if (maskedImage.data){
+                trackSuccess = true;
+            }
         }
 
-        // detect lines
-        bool detectSuccess = false;
-        std::vector< Vec2f> lines;
-        if(trackSuccess){
-            lines = lineDetection(maskedImage, cannyThres1, cannyThresh2, houghThresh);
-            detectSuccess = true;
+//        // detect lines
+//        bool detectSuccess = false;
+//        std::vector< Vec2f> lines;
+//        if(trackSuccess){
+//            lines = lineDetection(maskedImage, cannyThres1, cannyThresh2, houghThresh);
+//            detectSuccess = true;
 
-//            // display Hough lines; move this into lineDetection subfunction
-//            for (int i = 0; i < lines.size(); i++){
-//                float rho = lines[i][0];
-//                float theta = lines[i][1];
-//                Vec4f lineEq = rhoTheta2XY(rho, theta); // convert rho, theta to x1, y1, x2, y2; just for plotting
-//                line(myImage, Point(round(lineEq(0)), round(lineEq(1))), Point(round(lineEq(2)), round(lineEq(3))), Scalar(0,255,0), 2, 8);
+////            // display Hough lines; move this into lineDetection subfunction
+////            for (int i = 0; i < lines.size(); i++){
+////                float rho = lines[i][0];
+////                float theta = lines[i][1];
+////                Vec4f lineEq = rhoTheta2XY(rho, theta); // convert rho, theta to x1, y1, x2, y2; just for plotting
+////                line(myImage, Point(round(lineEq(0)), round(lineEq(1))), Point(round(lineEq(2)), round(lineEq(3))), Scalar(0,255,0), 2, 8);
+////            }
+//        }
+
+//        // do clustering on lines
+//        bool clusterSuccess = false;
+//        std::vector<Vec2f> clusteredLines;
+//        if (lines.size()>0){
+//            clusteredLines = clusterLines(lines, myImage);
+//            clusterSuccess = true;
+//        }
+
+//        // do corner estimation from lines; corner is defined as intersection of lines
+//        bool intersectionSuccess = false;
+//        std::vector<Vec2f> orderedPoints;
+//        if ((clusteredLines.size() >= 2) && (clusterSuccess)){ // obviously no reason to find corners on fewer than two lines
+//            std::vector<Vec2f> intersectionPoints = computeCorners(clusteredLines, myImage);
+
+//            if (intersectionPoints.size() == 4) {
+//                orderedPoints = putPointsInOrder(intersectionPoints);
+//                intersectionSuccess = true; // update success handle
+
+//                // draw polygon; move this into subfunction
+//                for (int i = 0; i < intersectionPoints.size()-1; i++){
+//                line(myImage, Point(round(orderedPoints[i][0]), round(orderedPoints[i][1])), Point(round(orderedPoints[i+1][0]), round(orderedPoints[i+1][1])), Scalar(255,255,0), 2, 8);
 //            }
-        }
+//                line(myImage, Point(round(orderedPoints[0][0]), round(orderedPoints[0][1])), Point(round(orderedPoints[intersectionPoints.size()-1][0]), round(orderedPoints[intersectionPoints.size()-1][1])), Scalar(255,255,0), 2, 8); // closing line
+//            }
+//        }
 
-        // do clustering on lines
-        bool clusterSuccess = false;
-        std::vector<Vec2f> clusteredLines;
-        if (lines.size()>0){
-            clusteredLines = clusterLines(lines, myImage);
-            clusterSuccess = true;
-        }
+//        // do perspective transformation; right now only do perspective if I have exactly 4 points
+//        bool transformationSuccess = false;
+//        Mat correctedImage;
+//        Mat warpMatrix (3, 4, CV_32FC1);
+//        if (orderedPoints.size() == 4 && intersectionSuccess){
+//             correctedImage = doTransformation(orderedPoints, myImage, warpMatrix);
 
-        // do corner estimation from lines; corner is defined as intersection of lines
-        bool intersectionSuccess = false;
-        std::vector<Vec2f> orderedPoints;
-        if ((clusteredLines.size() >= 2) && (clusterSuccess)){ // obviously no reason to find corners on fewer than two lines
-            std::vector<Vec2f> intersectionPoints = computeCorners(clusteredLines, myImage);
+//             std::cout << "\t warpMatrix = \n";
+//             for (int i = 0; i < 3; i++){
+//                 std::cout << "\t| " << warpMatrix.at<float>(i,0) << ",\t " << warpMatrix.at<float>(i,1) << ",\t " << warpMatrix.at<float>(i, 2) << ",\t " << warpMatrix.at<float>(i,3) << "\t|\n";
+//             }
 
-            if (intersectionPoints.size() == 4) {
-                orderedPoints = putPointsInOrder(intersectionPoints);
-                intersectionSuccess = true; // update success handle
+//             // confirm successful transformation
+//             if (correctedImage.cols > 0 && correctedImage.rows > 0){     // if corrected inage
+//                transformationSuccess = true;
+//             }
+//        }
 
-                // draw polygon; move this into subfunction
-                for (int i = 0; i < intersectionPoints.size()-1; i++){
-                line(myImage, Point(round(orderedPoints[i][0]), round(orderedPoints[i][1])), Point(round(orderedPoints[i+1][0]), round(orderedPoints[i+1][1])), Scalar(255,255,0), 2, 8);
-            }
-                line(myImage, Point(round(orderedPoints[0][0]), round(orderedPoints[0][1])), Point(round(orderedPoints[intersectionPoints.size()-1][0]), round(orderedPoints[intersectionPoints.size()-1][1])), Scalar(255,255,0), 2, 8); // closing line
-            }
-        }
+//        // read QR code from corrected image
+//        std::string filename;                                           // to store filename from QR code
+//        bool readQRcodeSuccess = false;
+//        if (transformationSuccess){                                     // if transform succeeded
+//            std::cout << "\ndoing readQRCode:\n";
+//            filename = readQRCode(correctedImage, myScanner);
 
-        // do perspective transformation; right now only do perspective if I have exactly 4 points
-        bool transformationSuccess = false;
-        Mat correctedImage;
-        Mat warpMatrix (3, 4, CV_32FC1);
+//            // confirm succesful QR read
+//            if (filename.size() > 0) {
+//                readQRcodeSuccess = true;
+//            }
+//        }
 
-        if (orderedPoints.size() == 4 && intersectionSuccess){
-             correctedImage = doTransformation(orderedPoints, myImage, warpMatrix);
+//        // load file to display
+//        bool loadFileSuccess = false;
+//        if (readQRcodeSuccess && (overlayPeriod %10 == 0)){
+//            std::cout << "\nloading overlay image:\n";
+//            overlayImage =  loadDisplayImage(filename);
 
-             std::cout << "\t warpMatrix = \n";
-             for (int i = 0; i < 3; i++){
-                 std::cout << "\t| " << warpMatrix.at<float>(i,0) << ",\t " << warpMatrix.at<float>(i,1) << ",\t " << warpMatrix.at<float>(i, 2) << ",\t " << warpMatrix.at<float>(i,3) << "\t|\n";
-             }
+//            if(overlayImage.cols > 0 && overlayImage.rows > 0){
+//                 loadFileSuccess = true;
+//            }
+//        }
 
-             // confirm successful transformation
-             if (correctedImage.cols > 0 && correctedImage.rows > 0){     // if corrected inage
-                transformationSuccess = true;
-             }
-        }
-
-        // read QR code from corrected image
-        std::string filename;                                           // to store filename from QR code
-        bool readQRcodeSuccess = false;
-        if (transformationSuccess){                                     // if transform succeeded
-            std::cout << "\ndoing readQRCode:\n";
-            filename = readQRCode(correctedImage, myScanner);
-
-            // confirm succesful QR read
-            if (filename.size() > 0) {
-                readQRcodeSuccess = true;
-            }
-        }
+//        // transform overlay down to image myImage perspective and merge
+//        Mat perspectiveOverlay(myImage.rows, myImage.cols, CV_8UC4, Scalar(0,0,0,0)); // to store inverse warped overlay
+//        if (loadFileSuccess){                                                       // if overlay was loaded orrectly
+//            std::cout << "\ndoing transformation:\n";
+//            doReverseTransformation(overlayImage, warpMatrix, perspectiveOverlay);  // do reverse transform
+//            myImage = myImage + perspectiveOverlay;                                 // merge warped overlay with myImage
+//        }
 
         /** ----- general format -----------:
             declare any variables
@@ -174,25 +192,6 @@ int main (){
             }
           **/
 
-        // load file to display
-        Mat overlayImage;                                           // to store loaded overlay image
-        bool loadFileSuccess = false;
-        if (readQRcodeSuccess && (overlayPeriod %10 == 0)){
-            std::cout << "\nloading overlay image:\n";
-            overlayImage =  loadDisplayImage(filename);
-
-            if(overlayImage.cols > 0 && overlayImage.rows > 0){
-                 loadFileSuccess = true;
-            }
-        }
-
-        // transform overlay down to image myImage perspective and merge
-        Mat perspectiveOverlay(myImage.rows, myImage.cols, CV_8UC4, Scalar(0,0,0,0)); // to store inverse warped overlay
-        if (overlayImage.data){                                                       // if overlay was loaded orrectly
-            std::cout << "\ndoing transformation:\n";
-            doReverseTransformation(overlayImage, warpMatrix, perspectiveOverlay);  // do reverse transform
-            myImage = myImage + perspectiveOverlay;                                 // merge warped overlay with myImage
-        }
 
         // update display
         if(counter % displayPeriod == 0){
@@ -217,10 +216,9 @@ int main (){
     // ====================== CLEANUP ==========================
     myVideoCapture.release();       // release the capture source
     destroyWindow("videoWindow");   // destroy the video window(s)
-    destroyWindow("tracked area of interest");
-    destroyWindow("canny edge detection");
-    destroyWindow("transformed image");
-    destroyWindow("inverse perspective window");
+//    destroyWindow("canny edge detection");
+//    destroyWindow("transformed image");
+//    destroyWindow("inverse perspective window");
 
     int dummy;
     return dummy;
@@ -252,8 +250,8 @@ bool displayFrame(Mat image){
 
 /** =============================================================================
     description: tracks white blob in image and updates display image
-    input: reference to pointer to IplImage
-    returns: true if successful
+    input: Mat myImage (in RGB space)
+    returns: Mat image with centroid (in binary space)
 **/
 Mat trackObject(Mat myImage){
     std::cout << "===================\n";
@@ -272,35 +270,14 @@ Mat trackObject(Mat myImage){
     // do closing; I need to do closing to remove any text on page
     Mat closedImage;
     closedImage.create(myImage.rows, myImage.cols, CV_8U);                      // force to be 8bit unsigned, single channel
-    Size size(4,4);                                                             // create kernel
-    Mat closingKernel = getStructuringElement(MORPH_RECT, size, Point(-1,-1));
-    int closingIterations = 3; // may need to increase for large QR codes
+    Size size(4,4);                                                             // set kernel size, may need to increase for large QR codes
+    Mat closingKernel = getStructuringElement(MORPH_RECT, size, Point(-1,-1));  // create kernel
+    int closingIterations = 3;
     morphologyEx(thresholdImage, closedImage, MORPH_CLOSE, closingKernel, Point(-1,-1), closingIterations, BORDER_CONSTANT, morphologyDefaultBorderValue()); // basically use default parameters
 
     // compute centroid and blob orientation and draw
     Mat centroidImage = computeCentroidAndOrientation(closedImage);     // compute centroid and orientation
-//    myImage = centroidImage + myImage;                                  // merge images
 
-    //  AT THE MOMENT I DON'T NEED CONTOURS
-//    // compute contours
-//    std::vector< std::vector< Point> > contours = computeContours(closedImage); // update myImage
-//    std::cout << "there are some contours :"  << contours.size() << "\n";
-
-//    // draw contours
-//    for (int i = 0; i < contours.size(); i++){
-//        std::vector<Point> singleContour = contours[i];                     // get single contour
-//        Scalar randomColor = Scalar(rand()&255, rand()&255, rand()&255);    // generate random colro
-//        drawContours(myImage, contours, i, randomColor, 2, 8 );             // draw single contour
-//        int numPoints = singleContour.size();                               // get number of points
-//        std::cout << "\t contour [" << i << "] has " << numPoints << " points.\n";
-//    }
-
-//    Mat justContoursImage;
-//    justContoursImage.create(myImage.rows, myImage.cols, CV_8U); // also draw contours on new image
-//    drawContours(justContoursImage, contours, -1, Scalar(255), 2, 8);
-
-    // display intermediate results
-    imshow("tracked area of interest", closedImage);   // show the image
     return closedImage;
 }
 
@@ -339,9 +316,8 @@ Mat computeCentroidAndOrientation(Mat inputImage){
 
     // std::cout << "theta = " << theta << "\n";
 
-    // create image to hold overlay drawing
-    Mat overlayImage;
-    overlayImage.create(inputImage.rows, inputImage.cols, CV_8UC3); // force to be 8bit unsigned, 3 channel (to match original image
+    // create image to hold  centroid and orientation overlay drawing
+    Mat centroidOverlayImage(inputImage.rows, inputImage.cols, CV_8UC3, Scalar(0,0,0)); // force to be 8bit unsigned, 3 channel (to match original image
 
     // draw + shape at centroid
     // compute points; "top", "bottom", "left", and "right" are just semantic names given to four points
@@ -358,11 +334,49 @@ Mat computeCentroidAndOrientation(Mat inputImage){
     && (rightPoint.x > 0)   && (rightPoint.x < 600)     && (rightPoint.y > 0)   && (rightPoint.y<480)){
 
         // draw two lines
-        line(overlayImage, topPoint, bottomPoint, Scalar(0,0,255), 5); // horizontal line
-        line(overlayImage, leftPoint, rightPoint, Scalar(0,0,255), 5); // vertical line*/
+        line(centroidOverlayImage, topPoint, bottomPoint, Scalar(0,0,255), 5); // horizontal line
+        line(centroidOverlayImage, leftPoint, rightPoint, Scalar(0,0,255), 5); // vertical line*/
     }
-    return overlayImage;
+
+
+    if(centroidButtonState_){    // if button state is on, merge images for display
+//        temp = centroidImage + myImage;
+        imshow("centroid image", centroidOverlayImage);
+    }
+
+    return centroidOverlayImage;
 }
+
+/** =============================================================================
+    description: creates mask from
+    intput: inputImage 3 channel
+    output:
+**/
+Mat createMask(Mat inputImage, Mat trackedImage){
+
+    Mat maskedImage; // setup masked image
+    maskedImage.create(inputImage.rows, inputImage.cols, CV_8UC3);
+
+    // create 3channel image where trackedImage is in each channel
+    Mat trackedImage_C3(inputImage.rows, inputImage.cols, inputImage.type());
+
+    // creat temp vector of Mat to store replicated matrix
+    std::vector<Mat> temp;
+    temp.push_back(trackedImage);
+    temp.push_back(trackedImage);
+    temp.push_back(trackedImage);
+    merge(temp, trackedImage_C3);
+
+    maskedImage = inputImage.mul(trackedImage_C3); // elementwise multiplication; since tracked image is binary, multiplying input image by either 1 or 0, it preserves the ROI
+
+    if (maskButtonState_){imshow("masked image", maskedImage);} // if button pressed show image
+
+    return maskedImage;
+}
+
+
+
+
 
 /** =============================================================================
     description: computes the contours
@@ -422,15 +436,6 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
     std::vector<Vec2f> lines;         // pre allocate space
     HoughLines(edgesImage, lines, rho, theta, houghThresh, 0, 0);
 
-//    // remove Hough lines with non-positive rho; I DON'T THINK I NEED THIS
-//    for (int i = 0; i < lines.size();){ // iterate through all and remove some
-//        if (lines[i][0] <= 0) {
-//            lines.erase(lines.begin()+i     );
-//        }
-//        else{
-//            i++; // put the iterator here so that I don't skip anything
-//        }
-//    }
     std::cout << "Hough lines (" << lines.size() << ") :\n";
     return lines;
 }
@@ -633,8 +638,8 @@ void doReverseTransformation(Mat overlayImage, Mat warpMatrix, Mat& perspectiveO
                     perspectiveOverlay,
                     warpMatrix,
                     Size(perspectiveOverlay.cols, perspectiveOverlay.rows),
-                    WARP_INVERSE_MAP,
-                    BORDER_TRANSPARENT);
+                    WARP_INVERSE_MAP);//,
+//                    BORDER_TRANSPARENT);
 
     imshow("inverse perspective window", perspectiveOverlay);
 }
