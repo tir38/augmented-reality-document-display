@@ -117,8 +117,22 @@ Mat loadDisplayImage(std::string filename){
     // this is where i will determine what file type i am trying to load
     // and do any neccessary conversions into readable format(s)
 
-    Mat overlayImage = imread(filename);
-    std::cout << "\t overlay image size = [" << overlayImage.cols << ", " << overlayImage.rows << "]\n";
+    // read in file
+    Mat overlayImage = imread(filename, 1); // 1 = force load as 3-channel
 
-    return overlayImage;
+    std::cout << "\t overlayImage's type: " << overlayImage.type() << ", " <<  overlayImage.channels() << ", " << overlayImage.depth() << "\n";
+
+    // add in an alpha channel by splitting and rejoining
+    Mat output;
+    Mat alphaChannel;
+    alphaChannel = Mat::ones(overlayImage.rows, overlayImage.cols, CV_8UC1); // create alpha channel with all ones
+    std::vector<Mat> arrayOfChannels;
+    split(overlayImage, arrayOfChannels); // split into array [B, G, R]
+    arrayOfChannels.push_back(alphaChannel); // add alpha to array
+    std::cout<< "\t size of arrayOfChannels = " << arrayOfChannels.size() << "\n";
+    merge(arrayOfChannels, output); // merge all channels in array
+
+    std::cout << "\t overlay image size = [" << output.cols << ", " << output.rows << "]; channels = " << output.channels() << "\n";
+
+    return output;
 }

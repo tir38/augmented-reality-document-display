@@ -50,7 +50,7 @@ int main (){
     // setup main window
     namedWindow("videoWindow", CV_WINDOW_AUTOSIZE);   // create a window
     moveWindow("videoWindow", 10, 10);                // move window to top left corner
-
+    namedWindow("temp", CV_WINDOW_AUTOSIZE);
 
     // setup buttons, initial state of all buttons is off
     createButton("show centroid and orientation",   callBackCentroidButton, NULL, CV_CHECKBOX, 0);
@@ -67,7 +67,6 @@ int main (){
     myScanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);     // configure the reader
 
     Mat overlayImage;                                           // to store loaded overlay image
-
 
     // ====================== MAIN LOOP ==========================
     while(true){
@@ -153,7 +152,6 @@ int main (){
             }
         }
 
-
         // ------- load file to display -------
         bool loadFileSuccess = false;
         if (readQRcodeSuccess && (overlayPeriod %10 == 0)){
@@ -167,10 +165,44 @@ int main (){
 
         // ------- transform overlay down to myImage perspective and merge -------
         Mat perspectiveOverlay(myImage.rows, myImage.cols, CV_8UC4, Scalar(0,0,0,0)); // to store inverse warped overlay
+
         if (loadFileSuccess){                                                       // if overlay was loaded orrectly
             std::cout << "\ndoing transformation:\n";
             doReverseTransformation(overlayImage, warpMatrix, perspectiveOverlay);  // do reverse transform
-            myImage = myImage + perspectiveOverlay;                                 // merge warped overlay with myImage
+
+
+            // THIS OVERLAY TECHNIQUE IS SUPER NASTY. TRY TO CLEAN IT UP!!!!!!!
+
+            // threshold transformed image be alpha channel to see if alpha was really set
+            Mat threshTempOutput;
+            threshTempOutput.create(perspectiveOverlay.rows, perspectiveOverlay.cols, CV_8U); // force to be 8bit unsigned, single channel
+            Scalar lowerBound(0,   0,      0, 1.0); // RGB
+            Scalar upperBound(255, 255,    255, 1.0);
+            inRange(perspectiveOverlay, lowerBound, upperBound, threshTempOutput);
+            imshow("temp", threshTempOutput);
+
+            Mat saveOverlay;
+            perspectiveOverlay.copyTo(saveOverlay, threshTempOutput);
+
+            // convert myImage to 4 channel for display
+            // add in an alpha channel by splitting and rejoining
+            Mat myImage4chan;
+            Mat alphaChannel;
+            alphaChannel = Mat::ones(myImage.rows, myImage.cols, CV_8UC1); // create alpha channel with all ones
+            std::vector<Mat> arrayOfChannels;
+            split(myImage, arrayOfChannels); // split into array [B, G, R]
+            arrayOfChannels.push_back(alphaChannel); // add alpha to array
+            merge(arrayOfChannels, myImage4chan); // merge all channels in array
+
+            // crop save from Myimage
+            Mat notThreshTempOutput;
+            bitwise_not(threshTempOutput, notThreshTempOutput);// not threshold
+            Mat saveInput;
+            myImage4chan.copyTo(saveInput, notThreshTempOutput);
+
+            Mat finalOutput = saveOverlay + saveInput;
+            imshow("temp", finalOutput);
+
         }
 
         /** ----- general format -----------:
@@ -212,7 +244,7 @@ int main (){
     // ====================== CLEANUP ==========================
     myVideoCapture.release();       // release the capture source
     destroyWindow("videoWindow");   // destroy the video window(s)
-//    destroyWindow("inverse perspective window");
+    destroyWindow("temp");
 
     int dummy;
     return dummy;
@@ -674,8 +706,8 @@ void doReverseTransformation(Mat overlayImage, Mat warpMatrix, Mat& perspectiveO
                     perspectiveOverlay,
                     warpMatrix,
                     Size(perspectiveOverlay.cols, perspectiveOverlay.rows),
-                    WARP_INVERSE_MAP);
-//                    BORDER_TRANSPARENT);
+                    WARP_INVERSE_MAP,
+                    BORDER_TRANSPARENT);
 
-    if(inverseButtonState_){imshow("inverse perspective window", perspectiveOverlay);} // if button pressed, display
+    if(inverseButtonState_){imshow("inverse", perspectiveOverlay);} // if button pressed, display
 }

@@ -1,3 +1,5 @@
+// stores all GUI button callback methods
+
 # include "mainAR.h"
 
 using namespace std;
