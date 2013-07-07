@@ -55,6 +55,8 @@ extern bool cannyButtonState_;
 extern bool houghButtonState_;
 extern bool clusterButtonState_;
 extern bool cornersButtonState_;
+extern bool perspectiveButtonState_;
+extern bool inverseButtonState_;
 
 extern int cannyThres1_;
 extern int cannyThresh2_;
@@ -76,6 +78,8 @@ void callBackCannyButton(int state, void* pointer);
 void callBackHoughButton(int state, void* pointer);
 void callBackClusterButton(int state, void* pointer);
 void callBackCornersButton(int state, void* pointer);
+void callBackPerspectiveButton(int state, void* pointer);
+void callBackInverseButton(int state, void* pointer);
 
 
 #endif // MAINAR_H

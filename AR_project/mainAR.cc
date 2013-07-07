@@ -1,4 +1,3 @@
-
 # include "mainAR.h"
 # include <vector>      // for vectors
 # include <stdio.h>     // for basic cout
@@ -17,6 +16,8 @@ bool cannyButtonState_      = false;
 bool houghButtonState_      = false;
 bool clusterButtonState_    = false;
 bool cornersButtonState_    = false;
+bool perspectiveButtonState_= false;
+bool inverseButtonState_    = false;
 
 // starting threshold values
 int cannyThres1_    = 0;
@@ -46,26 +47,24 @@ int main (){
         return 0;
     }
 
-    // setup windows
+    // setup main window
     namedWindow("videoWindow", CV_WINDOW_AUTOSIZE);   // create a window
     moveWindow("videoWindow", 10, 10);                // move window to top left corner
-//    namedWindow("transformed image",CV_WINDOW_AUTOSIZE);
-//    moveWindow("transformed image", 750,20);
-//    namedWindow("inverse perspective window", CV_WINDOW_AUTOSIZE);
-//    moveWindow("inverse perspective window", 750, 20);
 
-    // setup buttons
-    createButton("show centroid and orientation",callBackCentroidButton, NULL, CV_CHECKBOX, 0); // centroid button, initial state = off
-    createButton("show masked image",       callBackMaskButton, NULL, CV_CHECKBOX, 0); //
-    createButton("show Canny edges",        callBackCannyButton, NULL, CV_CHECKBOX, 0);
-    createButton("show Hough lines",        callBackHoughButton, NULL, CV_CHECKBOX, 0);
-    createButton("show clustered lines",    callBackClusterButton, NULL, CV_CHECKBOX, 0);
-    createButton("show corners",            callBackCornersButton, NULL, CV_CHECKBOX, 0);
+
+    // setup buttons, initial state of all buttons is off
+    createButton("show centroid and orientation",   callBackCentroidButton, NULL, CV_CHECKBOX, 0);
+    createButton("show masked image",               callBackMaskButton,     NULL, CV_CHECKBOX, 0);
+    createButton("show Canny edges",                callBackCannyButton,    NULL, CV_CHECKBOX, 0);
+    createButton("show Hough lines",                callBackHoughButton,    NULL, CV_CHECKBOX, 0);
+    createButton("show clustered lines",            callBackClusterButton,  NULL, CV_CHECKBOX, 0);
+    createButton("show corners",                    callBackCornersButton,  NULL, CV_CHECKBOX, 0);
+    createButton("show perspective transformation", callBackPerspectiveButton, NULL, CV_CHECKBOX, 0);
+    createButton("show inverse perspective image", callBackInverseButton,   NULL, CV_CHECKBOX, 0);
 
     // setup zBar reader
     ImageScanner myScanner;     //setup reader
     myScanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);     // configure the reader
-
 
     Mat overlayImage;                                           // to store loaded overlay image
 
@@ -116,66 +115,63 @@ int main (){
             }
         }
 
-        // do corner estimation from lines; corner is defined as intersection of lines
+        // ------- do corner estimation from lines -------
         bool intersectionSuccess = false;
         std::vector<Vec2f> orderedPoints;
         if (clusterSuccess){
-            std::vector<Vec2f> orderedPoints = computeCorners(clusteredLines, myImage); // find all intersection points
+            orderedPoints = computeCorners(clusteredLines, myImage); // find all intersection points
 
             if (orderedPoints.size() == 4){
                 intersectionSuccess = true; // update success handle
             }
         }
 
-//        // do perspective transformation; right now only do perspective if I have exactly 4 points
-//        bool transformationSuccess = false;
-//        Mat correctedImage;
-//        Mat warpMatrix (3, 4, CV_32FC1);
-//        if (orderedPoints.size() == 4 && intersectionSuccess){
-//             correctedImage = doTransformation(orderedPoints, myImage, warpMatrix);
+        // ------- do perspective transformation -------
+        // right now only do perspective if I have exactly 4 points
+        bool transformationSuccess = false;
+        Mat correctedImage;
+        Mat warpMatrix (3, 4, CV_32FC1);
+        if (intersectionSuccess){
+             correctedImage = doTransformation(orderedPoints, myImage, warpMatrix);
 
-//             std::cout << "\t warpMatrix = \n";
-//             for (int i = 0; i < 3; i++){
-//                 std::cout << "\t| " << warpMatrix.at<float>(i,0) << ",\t " << warpMatrix.at<float>(i,1) << ",\t " << warpMatrix.at<float>(i, 2) << ",\t " << warpMatrix.at<float>(i,3) << "\t|\n";
-//             }
+             // confirm successful transformation
+             if (correctedImage.cols > 0 && correctedImage.rows > 0){     // if corrected inage
+                transformationSuccess = true;
+             }
+        }
 
-//             // confirm successful transformation
-//             if (correctedImage.cols > 0 && correctedImage.rows > 0){     // if corrected inage
-//                transformationSuccess = true;
-//             }
-//        }
+        // ------- read QR code from corrected image -------
+        std::string filename;                                           // to store filename from QR code
+        bool readQRcodeSuccess = false;
+        if (transformationSuccess){                                     // if transform succeeded
+            std::cout << "\ndoing readQRCode:\n";
+            filename = readQRCode(correctedImage, myScanner);
 
-//        // read QR code from corrected image
-//        std::string filename;                                           // to store filename from QR code
-//        bool readQRcodeSuccess = false;
-//        if (transformationSuccess){                                     // if transform succeeded
-//            std::cout << "\ndoing readQRCode:\n";
-//            filename = readQRCode(correctedImage, myScanner);
+            // confirm succesful QR read
+            if (filename.size() > 0) {
+                readQRcodeSuccess = true;
+            }
+        }
 
-//            // confirm succesful QR read
-//            if (filename.size() > 0) {
-//                readQRcodeSuccess = true;
-//            }
-//        }
 
-//        // load file to display
-//        bool loadFileSuccess = false;
-//        if (readQRcodeSuccess && (overlayPeriod %10 == 0)){
-//            std::cout << "\nloading overlay image:\n";
-//            overlayImage =  loadDisplayImage(filename);
+        // ------- load file to display -------
+        bool loadFileSuccess = false;
+        if (readQRcodeSuccess && (overlayPeriod %10 == 0)){
+            std::cout << "\nloading overlay image:\n";
+            overlayImage =  loadDisplayImage(filename);
 
-//            if(overlayImage.cols > 0 && overlayImage.rows > 0){
-//                 loadFileSuccess = true;
-//            }
-//        }
+            if(overlayImage.cols > 0 && overlayImage.rows > 0){
+                 loadFileSuccess = true;
+            }
+        }
 
-//        // transform overlay down to image myImage perspective and merge
-//        Mat perspectiveOverlay(myImage.rows, myImage.cols, CV_8UC4, Scalar(0,0,0,0)); // to store inverse warped overlay
-//        if (loadFileSuccess){                                                       // if overlay was loaded orrectly
-//            std::cout << "\ndoing transformation:\n";
-//            doReverseTransformation(overlayImage, warpMatrix, perspectiveOverlay);  // do reverse transform
-//            myImage = myImage + perspectiveOverlay;                                 // merge warped overlay with myImage
-//        }
+        // ------- transform overlay down to myImage perspective and merge -------
+        Mat perspectiveOverlay(myImage.rows, myImage.cols, CV_8UC4, Scalar(0,0,0,0)); // to store inverse warped overlay
+        if (loadFileSuccess){                                                       // if overlay was loaded orrectly
+            std::cout << "\ndoing transformation:\n";
+            doReverseTransformation(overlayImage, warpMatrix, perspectiveOverlay);  // do reverse transform
+            myImage = myImage + perspectiveOverlay;                                 // merge warped overlay with myImage
+        }
 
         /** ----- general format -----------:
             declare any variables
@@ -193,20 +189,20 @@ int main (){
           **/
 
 
-        // update display
+        // ------- update display -------
         if(counter % displayPeriod == 0){
             if(!displayFrame(myImage)){
                 std::cout << "===== ERROR: can't display frame\n";
             }
         }
 
-        // handle main( ) timing and break out
+        // ------- handle main( ) timing and break out -------
         int key = waitKey(10 * mainPeriod); // convert frequency to period
         if (key == 27){ // ESC key
             break;
         }
 
-        // handle counter
+        // ------- handle counter -------
         counter++; // increment counter
         if (counter > resetCounter){
             counter = 0;
@@ -216,7 +212,6 @@ int main (){
     // ====================== CLEANUP ==========================
     myVideoCapture.release();       // release the capture source
     destroyWindow("videoWindow");   // destroy the video window(s)
-//    destroyWindow("transformed image");
 //    destroyWindow("inverse perspective window");
 
     int dummy;
@@ -583,7 +578,6 @@ std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputI
             imshow("corners", plotableImage);
         }
     }
-
     return orderedPoints;
 }
 
@@ -625,9 +619,15 @@ Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage, Mat& warpMa
 
     warpMatrix = getPerspectiveTransform(distortedPoints, correctedPoints);
 
+    // print warp matrix to command line
+    std::cout << "\t warpMatrix = \n";
+    for (int i = 0; i < 3; i++){
+        std::cout << "\t| " << warpMatrix.at<float>(i,0) << ",\t " << warpMatrix.at<float>(i,1) << ",\t " << warpMatrix.at<float>(i, 2) << ",\t " << warpMatrix.at<float>(i,3) << "\t|\n";
+    }
+
     warpPerspective(inputImage, outputImage, warpMatrix, outputImage.size());
 
-    imshow("transformed image", outputImage);
+    if(perspectiveButtonState_){imshow("perspective", outputImage);}
 
     return outputImage;
 }
@@ -636,31 +636,31 @@ Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage, Mat& warpMa
 code for this was pulled from https://github.com/rportugal/opencv-zbar
 **/
 std::string  readQRCode(Mat inputImage, ImageScanner& myScanner){
+    std::cout << "\nread QR codes:\n";
 
-        Mat myGrayscaleImage;
+    Mat myGrayscaleImage;
+    cvtColor(inputImage, myGrayscaleImage, CV_BGR2GRAY);
 
-        cvtColor(inputImage, myGrayscaleImage, CV_BGR2GRAY);
+    // Obtain image data
+    int width = myGrayscaleImage.cols;
+    int height = myGrayscaleImage.rows;
+    uchar *raw = (uchar *)(myGrayscaleImage.data);
 
-        // Obtain image data
-        int width = myGrayscaleImage.cols;
-        int height = myGrayscaleImage.rows;
-        uchar *raw = (uchar *)(myGrayscaleImage.data);
+    // Wrap image data
+    Image image(width, height, "Y800", raw, width * height);
 
-        // Wrap image data
-        Image image(width, height, "Y800", raw, width * height);
+    // Scan the image for barcodes
+    myScanner.scan(image);
 
-        // Scan the image for barcodes
-        myScanner.scan(image);
+    // Extract results
+    std::string outputString;
+    int counter = 0;
+    for (Image::SymbolIterator symbol = image.symbol_begin(); symbol != image.symbol_end(); ++symbol){
+        outputString = symbol->get_data();
+    }
 
-        // Extract results
-        std::string outputString;
-        int counter = 0;
-        for (Image::SymbolIterator symbol = image.symbol_begin(); symbol != image.symbol_end(); ++symbol){
-            outputString = symbol->get_data();
-        }
-
-        std::cout << "\t " << outputString <<"\n";
-        return outputString;
+    std::cout << "\t " << outputString <<"\n";
+    return outputString;
 }
 
 
@@ -668,14 +668,14 @@ std::string  readQRCode(Mat inputImage, ImageScanner& myScanner){
 
 **/
 void doReverseTransformation(Mat overlayImage, Mat warpMatrix, Mat& perspectiveOverlay){
-
+    std::cout << "\ndo reverse transformation:\n";
 
     warpPerspective(overlayImage,
                     perspectiveOverlay,
                     warpMatrix,
                     Size(perspectiveOverlay.cols, perspectiveOverlay.rows),
-                    WARP_INVERSE_MAP);//,
+                    WARP_INVERSE_MAP);
 //                    BORDER_TRANSPARENT);
 
-    imshow("inverse perspective window", perspectiveOverlay);
+    if(inverseButtonState_){imshow("inverse perspective window", perspectiveOverlay);} // if button pressed, display
 }

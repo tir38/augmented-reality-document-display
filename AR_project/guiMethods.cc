@@ -100,3 +100,34 @@ void callBackCornersButton(int state, void* pointer){
     }
     std::cout << "cornersButtonState_ = " << cornersButtonState_ << "\n";
 }
+
+/**
+**/
+void callBackPerspectiveButton(int state, void* pointer){
+    if (state == 0){
+        perspectiveButtonState_ = false;
+        destroyWindow("perspective");
+    }
+    else if (state == 1){
+        perspectiveButtonState_ = true;
+        namedWindow("perspective", CV_WINDOW_AUTOSIZE);
+        moveWindow("perspective", 700,100);
+    }
+    std::cout << "perspectiveButtonState_ = " << perspectiveButtonState_ << "\n";
+}
+
+
+/**
+**/
+void callBackInverseButton(int state, void* pointer){
+    if (state == 0){
+        inverseButtonState_ = false;
+        destroyWindow("inverse");
+    }
+    else if (state == 1){
+        inverseButtonState_ = true;
+        namedWindow("inverse", CV_WINDOW_AUTOSIZE);
+        moveWindow("inverse", 600,100);
+    }
+    std::cout << "inverseButtonState_ = " << inverseButtonState_ << "\n";
+}
