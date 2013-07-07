@@ -49,6 +49,7 @@ void doReverseTransformation(Mat overlayImage, Mat warpMatrix, Mat& perspectiveO
 
 
 // global variables
+// button states
 extern bool centroidButtonState_;
 extern bool maskButtonState_;
 extern bool cannyButtonState_;
@@ -58,12 +59,16 @@ extern bool cornersButtonState_;
 extern bool perspectiveButtonState_;
 extern bool inverseButtonState_;
 
+// tuning parameters
 extern int intensityThresh_;
 extern int closingKernelSize_;
 extern int closingIterations_;
 extern int cannyThres1_;
 extern int cannyThresh2_;
 extern int houghThresh_;
+extern int attempts_;
+extern int maxIterations_;
+extern int epsilon_;
 
 
 // helper methods

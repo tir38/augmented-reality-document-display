@@ -20,12 +20,15 @@ bool perspectiveButtonState_= false;
 bool inverseButtonState_    = false;
 
 // starting tuning parameters/threshold values
-int intensityThresh_        = 180;
-int closingKernelSize_  = 3;
-int closingIterations_  = 9;
-int cannyThres1_        = 0;
-int cannyThresh2_       = 95;
-int houghThresh_        = 80;
+int intensityThresh_    = 180;  // pixel value for intensity thresholding of HSV image
+int closingKernelSize_  = 3;    // kernel size (square) for closing
+int closingIterations_  = 9;    // number of iterations for closing
+int cannyThres1_        = 0;    // Canny edge detection threshold 1
+int cannyThresh2_       = 95;   // Canny edge detection threshold 2
+int houghThresh_        = 100;  // Hough line threshold
+int attempts_           = 6;    // k-means attempts
+int maxIterations_      = 100;  // k-means max iterations
+int epsilon_            = 2;    // k-means epsilon
 
 
 /** =============================================================================
@@ -272,7 +275,7 @@ Mat trackObject(Mat myImage){
     morphologyEx(thresholdImage, closedImage, MORPH_CLOSE, closingKernel, Point(-1,-1), closingIterations_, BORDER_CONSTANT, morphologyDefaultBorderValue()); // basically use default parameters
 
     // compute centroid and blob orientation and draw
-    Mat centroidImage = computeCentroidAndOrientation(closedImage);     // compute centroid and orientation
+    Mat centroidImage = computeCentroidAndOrientation(closedImage);     // compute centroid and orientation; I don't do anything with this Mat
 
     return closedImage;
 }
@@ -302,15 +305,11 @@ Mat computeCentroidAndOrientation(Mat inputImage){
     int xBar = (int)(m10 / m00); // typecast to int
     int yBar = (int)(m01 / m00); // typecast to int
 
-    // std::cout << "centroid :" << xBar << ", " << yBar << "\n";
-
     // compute orientation from moments (see reference paper)
     double mu20 = (m20 / m00) - ((m10 * m10) / (m00));
     double mu02 = (m02 / m00) - ((m01 * m01) / (m00));
     double mu11 = (m11 / m00) - ((m10 * m01) / (m00));
     double theta = 0.5 * atan((2 * mu11) / (mu20 - mu02)); // radians
-
-    // std::cout << "theta = " << theta << "\n";
 
     // create image to hold  centroid and orientation overlay drawing
     Mat centroidOverlayImage(inputImage.rows, inputImage.cols, CV_8UC3, Scalar(0,0,0)); // force to be 8bit unsigned, 3 channel (to match original image
@@ -334,34 +333,34 @@ Mat computeCentroidAndOrientation(Mat inputImage){
         line(centroidOverlayImage, leftPoint, rightPoint, Scalar(0,0,255), 5); // vertical line*/
     }
 
-    if(centroidButtonState_){    // if button state is on, merge images for display
+    if(centroidButtonState_){    // if button state is on, display centroid and orientation
         imshow("centroid image", centroidOverlayImage);
     }
-
     return centroidOverlayImage;
 }
 
 /** =============================================================================
     description: creates mask from
-    intput: inputImage 3 channel
-    output: masked image 3 channel
+    intput: inputImage: Mat 3 channel
+            mask:       Mat 1 channel
+    returns: maskedImage: Mat 3 channel
 **/
-Mat createMask(Mat inputImage, Mat trackedImage){
+Mat createMask(Mat inputImage, Mat mask){
 
     Mat maskedImage; // setup masked image
     maskedImage.create(inputImage.rows, inputImage.cols, CV_8UC3);
 
-    // create 3channel image where trackedImage is in each channel
-    Mat trackedImage_C3(inputImage.rows, inputImage.cols, inputImage.type());
+    // create 3channel mask where mask is in each channel
+    Mat mask_C3(inputImage.rows, inputImage.cols, inputImage.type());
 
     // creat temp vector of Mat to store replicated matrix
     std::vector<Mat> temp;
-    temp.push_back(trackedImage);
-    temp.push_back(trackedImage);
-    temp.push_back(trackedImage);
-    merge(temp, trackedImage_C3);
+    temp.push_back(mask);
+    temp.push_back(mask);
+    temp.push_back(mask);
+    merge(temp, mask_C3);
 
-    maskedImage = inputImage.mul(trackedImage_C3); // elementwise multiplication; since tracked image is binary, multiplying input image by either 1 or 0, it preserves the ROI
+    maskedImage = inputImage.mul(mask_C3); // elementwise multiplication; since tracked image is binary, multiplying input image by either 1 or 0, it preserves the ROI
 
     if (maskButtonState_){imshow("masked image", maskedImage);} // if button pressed show image
     return maskedImage;
@@ -369,8 +368,8 @@ Mat createMask(Mat inputImage, Mat trackedImage){
 
 
 /** =============================================================================
-    description: computes the contours
-    input: Mat, image 8bit unsigned, single channel
+    description: computes  contours
+    input: inputImage: Mat image 8bit unsigned, single channel
     returns: vector of vector of Points
 **/
 std::vector< std::vector< Point> > computeContours(Mat inputImage){
@@ -389,7 +388,10 @@ std::vector< std::vector< Point> > computeContours(Mat inputImage){
 
 /** =============================================================================
     description: line detection using Canny edge detection and Hough Lines
-    input: Mat, image 8bit unsigned, single channel, two threshold parameters
+    input: inputImage:      Mat, image 8bit unsigned, single channel
+           cannyThresh1:    int, threshold parameter
+           cannyThresh2:    int, threshold parameter
+           houghThres:      int, threshold parameter
     returns: vector of Vec2f; lines in [rho, theta] format
 **/
 std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThresh2, int houghThresh){
@@ -407,11 +409,11 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
 
     // do gaussian blur to get rid of noise
     Mat blurImage;
-    blur(greyscale, blurImage, Size(3,3) );
+    blur(greyscale, blurImage, Size(3,3) ); // consider making this tune-able param
 
     // do Canny edge detection
     Mat edgesImage;
-    int kernelSize = 3; // I'm looking for crisp thin edges, so use small kernel
+    int kernelSize = 3; // I'm looking for crisp thin edges, so use small kernel; // consider making this tune-able param
 
     Canny(blurImage, edgesImage, cannyThresh1, cannyThresh2, kernelSize);
 
@@ -423,7 +425,7 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
     std::cout << "\ndo hough lines with threshold [" << houghThresh << "]\n";
 
     // find Hough lines; because the edge detection is really crisp, we can jack up the Hough threshold
-    double rho      = 2;
+    double rho      = 2;                // these are good params, no need to tune
     double theta    = CV_PI/90;         // may need to rename this variable
     std::vector<Vec2f> lines;         // pre allocate space
     HoughLines(edgesImage, lines, rho, theta, houghThresh, 0, 0);
@@ -452,10 +454,16 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
 
 /** =============================================================================
     description: does clustering of all Hough lines in rho, theta space
-    input: lines and image to overlay
+    input:  lines:      vector of vector of float, each line is row, each row has two values rho,thata
+            myImage:    Mat, image to overlay lines for display
     returns: new equations of lines for centers clustering
+
+    note: when Hough lines does a good job, clusteredLines() is almost a formality for smoothing,
+            currently, the "upto and including Hough lines" is the real problem for good tracking.
+            As such, k-means parameters play little difference into results; However, high k-means params
+            do cause slow processing.
 **/
-std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
+std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat inputImage){
     std::cout << "\ndo k-means clustering:\n";
 
     // convert vector<Vec2f> to Mat
@@ -465,21 +473,17 @@ std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
         dataPoints.at<float>(i,1) = lines[i][1];
     }
 
-    // tuning parameters; move to global parameters???
+    // force Hough lines into four bins
     int K = 4;                  // cluster into K bins
     if (lines.size() < K){      // if number of lines is less than number of attempted clusters...
         K = lines.size();       // ... reduce number of clusters
     }
-    int attempts = 6;           // do k means 5 times and pick best one
-    int maxIterations = 100;    // each attemp iterate 100 times
-    int epsilon = 2;            // AND with epsilon < 2 pixels
-
     // output Mat's
     Mat bestLabels;
     Mat centers;
 
     // do kMeans
-    kmeans(dataPoints, K, bestLabels, TermCriteria(CV_TERMCRIT_ITER, maxIterations, epsilon), attempts , KMEANS_RANDOM_CENTERS, centers );
+    kmeans(dataPoints, K, bestLabels, TermCriteria(CV_TERMCRIT_ITER, maxIterations_, epsilon_), attempts_ , KMEANS_RANDOM_CENTERS, centers );
 
     // if button pressed, print Hough lines and labels
     if(clusterButtonState_){
@@ -492,7 +496,7 @@ std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
     // convert Mat back to vector<Vec2f>
     std::vector<Vec2f> clusteredLines;
     std::cout << "\t clustered lines(rho, theta):\n";
-    Mat plottableImage = myImage.clone(); // create clone just for plotting
+    Mat plottableImage = inputImage.clone(); // create clone just for plotting
 
     for (int i = 0; i < centers.rows; i++){
         Vec2f center;

@@ -74,7 +74,7 @@ void callBackHoughButton(int state, void* pointer){
         namedWindow("hough lines", CV_WINDOW_AUTOSIZE);
         moveWindow("hough lines", 400,100);
 
-        houghThresh_ = 80;
+        houghThresh_ = 100;
         createTrackbar("Hough threshold", "hough lines", &houghThresh_, 100);
     }
     std::cout << "houghButtonState_ = " << houghButtonState_ << "\n";
@@ -91,6 +91,13 @@ void callBackClusterButton(int state, void* pointer){
         clusterButtonState_ = true;
         namedWindow("clustered lines", CV_WINDOW_AUTOSIZE);
         moveWindow("clustered lines", 500,100);
+
+        attempts_       = 6;
+        maxIterations_  = 100;
+        epsilon_        = 2;
+        createTrackbar("attempts", "clustered lines", &attempts_, 20);
+        createTrackbar("max iterations", "clustered lines", &maxIterations_, 150);
+        createTrackbar("epsilon", "clustered lines", &epsilon_, 10);
     }
     std::cout << "clusterButtonState_ = " << clusterButtonState_ << "\n";
 }
