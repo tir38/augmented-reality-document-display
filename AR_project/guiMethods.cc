@@ -70,3 +70,33 @@ void callBackHoughButton(int state, void* pointer){
     }
     std::cout << "houghButtonState_ = " << houghButtonState_ << "\n";
 }
+
+/**
+**/
+void callBackClusterButton(int state, void* pointer){
+    if (state == 0){
+        clusterButtonState_ = false;
+        destroyWindow("clustered lines");
+    }
+    else if (state == 1){
+        clusterButtonState_ = true;
+        namedWindow("clustered lines", CV_WINDOW_AUTOSIZE);
+        moveWindow("clustered lines", 500,100);
+    }
+    std::cout << "clusterButtonState_ = " << clusterButtonState_ << "\n";
+}
+
+/**
+**/
+void callBackCornersButton(int state, void* pointer){
+    if (state == 0){
+        cornersButtonState_ = false;
+        destroyWindow("corners");
+    }
+    else if (state == 1){
+        cornersButtonState_ = true;
+        namedWindow("corners", CV_WINDOW_AUTOSIZE);
+        moveWindow("corners", 600,100);
+    }
+    std::cout << "cornersButtonState_ = " << cornersButtonState_ << "\n";
+}

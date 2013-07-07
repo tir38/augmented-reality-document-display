@@ -60,7 +60,6 @@ Vec2f rhoTheta2SlopeIntercept(float rho, float theta){
     returns: void
   **/
 std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints){
-    std::cout << "\nputting points in order;\n";
 
     std::vector< std::vector< float> > tempPoints;
 
@@ -72,7 +71,6 @@ std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints){
     }
     centroid[0] = centroid[0] / intersectionPoints.size();
     centroid[1] = centroid[1] / intersectionPoints.size();
-    //std::cout << "\t centroid of intersection points = [" << centroid[0] << ", " << centroid[1] << "]\n";
 
     // compute the heading from centroid to each point; order points by heading
     for (int i = 0; i < intersectionPoints.size(); i++){
@@ -100,12 +98,10 @@ std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints){
 
     // overwrite intersectionPoints with ordered points
     intersectionPoints.clear();
-    std::cout << "\t ordered points :\n";
     for (int i = 0; i < tempPoints.size(); i++){
         Vec2f orderedPoint;
         orderedPoint[0] = tempPoints[i][1];
         orderedPoint[1] = tempPoints[i][2];
-        std::cout << "\t[" << tempPoints[i][0] << ",\t " << tempPoints[i][1] << ",\t " << tempPoints[i][2] << "\t]\n";
         intersectionPoints.push_back(orderedPoint);
     }
 

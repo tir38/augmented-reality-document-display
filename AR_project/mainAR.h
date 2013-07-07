@@ -53,6 +53,9 @@ extern bool centroidButtonState_;
 extern bool maskButtonState_;
 extern bool cannyButtonState_;
 extern bool houghButtonState_;
+extern bool clusterButtonState_;
+extern bool cornersButtonState_;
+
 extern int cannyThres1_;
 extern int cannyThresh2_;
 extern int houghThresh_;
@@ -71,7 +74,8 @@ void callBackCentroidButton(int state, void* pointer);
 void callBackMaskButton(int state, void* pointer);
 void callBackCannyButton(int state, void* pointer);
 void callBackHoughButton(int state, void* pointer);
-
+void callBackClusterButton(int state, void* pointer);
+void callBackCornersButton(int state, void* pointer);
 
 
 #endif // MAINAR_H

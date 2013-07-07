@@ -15,6 +15,8 @@ bool centroidButtonState_   = false;
 bool maskButtonState_       = false;
 bool cannyButtonState_      = false;
 bool houghButtonState_      = false;
+bool clusterButtonState_    = false;
+bool cornersButtonState_    = false;
 
 // starting threshold values
 int cannyThres1_    = 0;
@@ -54,9 +56,11 @@ int main (){
 
     // setup buttons
     createButton("show centroid and orientation",callBackCentroidButton, NULL, CV_CHECKBOX, 0); // centroid button, initial state = off
-    createButton("show masked image", callBackMaskButton, NULL, CV_CHECKBOX, 0); //
-    createButton("show Canny edges", callBackCannyButton, NULL, CV_CHECKBOX, 0);
-    createButton("show Hough lines", callBackHoughButton, NULL, CV_CHECKBOX, 0);
+    createButton("show masked image",       callBackMaskButton, NULL, CV_CHECKBOX, 0); //
+    createButton("show Canny edges",        callBackCannyButton, NULL, CV_CHECKBOX, 0);
+    createButton("show Hough lines",        callBackHoughButton, NULL, CV_CHECKBOX, 0);
+    createButton("show clustered lines",    callBackClusterButton, NULL, CV_CHECKBOX, 0);
+    createButton("show corners",            callBackCornersButton, NULL, CV_CHECKBOX, 0);
 
     // setup zBar reader
     ImageScanner myScanner;     //setup reader
@@ -69,55 +73,59 @@ int main (){
     // ====================== MAIN LOOP ==========================
     while(true){
 
-        // get a frame
+        // ------- get a frame -------
         Mat myImage;
         myVideoCapture >> myImage;
 
-        // track object
+        // ------- track object -------
         bool trackSuccess = false;
         Mat maskedImage; // setup masked image
         if(counter % trackPeriod == 0){
+            std::cout << "===================\n";
             std::cout << "\ndo tracking:\n"; // do tracking
             Mat trackedImage = trackObject(myImage);            // track image
             maskedImage = createMask(myImage.clone(), trackedImage);    // create mask from tracked image and copy of myImage
+
+            // confirm successful tracking and masking
             if (maskedImage.data){
                 trackSuccess = true;
             }
         }
 
-        // detect lines
+        // ------- detect lines -------
         bool detectSuccess = false;
         std::vector< Vec2f> lines;
         if(trackSuccess){
             lines = lineDetection(maskedImage, cannyThres1_, cannyThresh2_, houghThresh_);
-            detectSuccess = true;
+
+            // confirm successful line detection
+            if (lines.size() > 4){
+                detectSuccess = true;
+            }
         }
 
-//        // do clustering on lines
-//        bool clusterSuccess = false;
-//        std::vector<Vec2f> clusteredLines;
-//        if (lines.size()>0){
-//            clusteredLines = clusterLines(lines, myImage);
-//            clusterSuccess = true;
-//        }
+        // ------- do clustering on lines -------
+        bool clusterSuccess = false;
+        std::vector<Vec2f> clusteredLines;
+        if (lines.size()>0){
+            clusteredLines = clusterLines(lines, myImage);
 
-//        // do corner estimation from lines; corner is defined as intersection of lines
-//        bool intersectionSuccess = false;
-//        std::vector<Vec2f> orderedPoints;
-//        if ((clusteredLines.size() >= 2) && (clusterSuccess)){ // obviously no reason to find corners on fewer than two lines
-//            std::vector<Vec2f> intersectionPoints = computeCorners(clusteredLines, myImage);
+            // confirm clustering worked
+            if (clusteredLines.size() > 2){ // next step will be find corners. no reason to find corners if less than two lines
+                clusterSuccess = true;
+            }
+        }
 
-//            if (intersectionPoints.size() == 4) {
-//                orderedPoints = putPointsInOrder(intersectionPoints);
-//                intersectionSuccess = true; // update success handle
+        // do corner estimation from lines; corner is defined as intersection of lines
+        bool intersectionSuccess = false;
+        std::vector<Vec2f> orderedPoints;
+        if (clusterSuccess){
+            std::vector<Vec2f> orderedPoints = computeCorners(clusteredLines, myImage); // find all intersection points
 
-//                // draw polygon; move this into subfunction
-//                for (int i = 0; i < intersectionPoints.size()-1; i++){
-//                line(myImage, Point(round(orderedPoints[i][0]), round(orderedPoints[i][1])), Point(round(orderedPoints[i+1][0]), round(orderedPoints[i+1][1])), Scalar(255,255,0), 2, 8);
-//            }
-//                line(myImage, Point(round(orderedPoints[0][0]), round(orderedPoints[0][1])), Point(round(orderedPoints[intersectionPoints.size()-1][0]), round(orderedPoints[intersectionPoints.size()-1][1])), Scalar(255,255,0), 2, 8); // closing line
-//            }
-//        }
+            if (orderedPoints.size() == 4){
+                intersectionSuccess = true; // update success handle
+            }
+        }
 
 //        // do perspective transformation; right now only do perspective if I have exactly 4 points
 //        bool transformationSuccess = false;
@@ -245,7 +253,6 @@ bool displayFrame(Mat image){
     returns: Mat image with centroid (in binary space)
 **/
 Mat trackObject(Mat myImage){
-    std::cout << "===================\n";
     // create copy of myImage and convert to HSV space
     Mat hsvImage;
     hsvImage.create(myImage.rows, myImage.cols, myImage.type());
@@ -329,9 +336,7 @@ Mat computeCentroidAndOrientation(Mat inputImage){
         line(centroidOverlayImage, leftPoint, rightPoint, Scalar(0,0,255), 5); // vertical line*/
     }
 
-
     if(centroidButtonState_){    // if button state is on, merge images for display
-//        temp = centroidImage + myImage;
         imshow("centroid image", centroidOverlayImage);
     }
 
@@ -365,7 +370,6 @@ Mat createMask(Mat inputImage, Mat trackedImage){
 }
 
 
-
 /** =============================================================================
     description: computes the contours
     input: Mat, image 8bit unsigned, single channel
@@ -391,7 +395,7 @@ std::vector< std::vector< Point> > computeContours(Mat inputImage){
     returns: vector of Vec2f; lines in [rho, theta] format
 **/
 std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThresh2, int houghThresh){
-    std::cout << "do canny with threshold [" << cannyThresh1 << " , " << cannyThresh2 << "]\n";
+    std::cout << "\ndo canny with threshold [" << cannyThresh1 << " , " << cannyThresh2 << "]\n";
 
     // make sure thresholds are positive values
     if (cannyThresh1 < 0){cannyThresh1 = 0;}
@@ -418,7 +422,7 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
     // -------------- done with Canny edges
 
 
-    std::cout << "do hough lines with threshold [" << houghThresh << "]\n";
+    std::cout << "\ndo hough lines with threshold [" << houghThresh << "]\n";
 
     // find Hough lines; because the edge detection is really crisp, we can jack up the Hough threshold
     double rho      = 2;
@@ -426,9 +430,9 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
     std::vector<Vec2f> lines;         // pre allocate space
     HoughLines(edgesImage, lines, rho, theta, houghThresh, 0, 0);
 
-    std::cout << "Hough lines (" << lines.size() << ") :\n";
+    std::cout << "\t computed (" << lines.size() << ") hough lines\n";
 
-    // display Hough lines; move this into lineDetection subfunction
+    // display Hough lines
     if (houghButtonState_){
         for (int i = 0; i < lines.size(); i++){
             float rho = lines[i][0];
@@ -438,6 +442,11 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
         }
 
         imshow("hough lines", inputImage);
+
+        // print Hough lines to command line
+        for (int i = 0; i < lines.size(); i++){
+            std::cout << "\t[" << lines[i][0] << ",\t " << lines[i][1] << "]\n";
+        }
     }
     return lines;
 }
@@ -449,6 +458,7 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
     returns: new equations of lines for centers clustering
 **/
 std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
+    std::cout << "\ndo k-means clustering:\n";
 
     // convert vector<Vec2f> to Mat
     Mat dataPoints(lines.size(), 2, CV_32F);
@@ -457,7 +467,7 @@ std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
         dataPoints.at<float>(i,1) = lines[i][1];
     }
 
-    // tuning parameters
+    // tuning parameters; move to global parameters???
     int K = 4;                  // cluster into K bins
     if (lines.size() < K){      // if number of lines is less than number of attempted clusters...
         K = lines.size();       // ... reduce number of clusters
@@ -473,16 +483,19 @@ std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
     // do kMeans
     kmeans(dataPoints, K, bestLabels, TermCriteria(CV_TERMCRIT_ITER, maxIterations, epsilon), attempts , KMEANS_RANDOM_CENTERS, centers );
 
-    // for debugging:
-    // print Hough lines and labels
-    for (int i = 0; i < lines.size(); i++){
-        std::cout << "\t[" << lines[i][0] << ",\t " << lines[i][1] << "]\t with label " << bestLabels.at<int>(i, 1) <<  "\n";
+    // if button pressed, print Hough lines and labels
+    if(clusterButtonState_){
+        std::cout << "\t hough lines with cluster labels:\n";
+        for (int i = 0; i < lines.size(); i++){
+            std::cout << "\t[" << lines[i][0] << ",\t " << lines[i][1] << "]\t with label " << bestLabels.at<int>(i, 1) <<  "\n";
+        }
     }
 
-    // plot line clusters
-    // convert Mat back to vector<Vec2f> and plot
+    // convert Mat back to vector<Vec2f>
     std::vector<Vec2f> clusteredLines;
-    std::cout << "\nclustered lines(rho, theta):\n";
+    std::cout << "\t clustered lines(rho, theta):\n";
+    Mat plottableImage = myImage.clone(); // create clone just for plotting
+
     for (int i = 0; i < centers.rows; i++){
         Vec2f center;
         center[0] = centers.at<float>(i,0);
@@ -494,15 +507,16 @@ std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
         float theta = center[1];
         std::cout << "\t[" << rho << ",\t " << theta << "]\n";
 
-//        if (rho < 0.001 && theta < 0.001){  // if rho and theta are both approx zero, its because that cluster doesn't have any element in it...
-//            continue;                       // ... so don't save it.
-//        }
-
         Vec4f lineEq = rhoTheta2XY(rho, theta);
 
-        // plot
-//        line(myImage, Point(round(lineEq(0)), round(lineEq(1))), Point(round(lineEq(2)), round(lineEq(3))), Scalar(0,0,255), 2, 8);
+        // if button pressed add single line to plot
+        if (clusterButtonState_){
+            line(plottableImage, Point(round(lineEq(0)), round(lineEq(1))), Point(round(lineEq(2)), round(lineEq(3))), Scalar(0,0,255), 2, 8);
+        }
     }
+
+    if (clusterButtonState_){imshow("clustered lines", plottableImage);} // if button pressed show lines
+
     return clusteredLines;
 }
 
@@ -513,6 +527,8 @@ std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat myImage){
     returns: void
 **/
 std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputImage){
+    std::cout << "\ncomputing corners:\n";
+    Mat plotableImage = inputImage.clone();    // strictly for visualizing
 
     // convert all lines from rho/theta into slope intercept
     std::vector< Vec2f> lines;
@@ -523,7 +539,6 @@ std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputI
     }
 
     // compute intersection point of each line with each other line
-    std::cout << "\nintersection points:\n";
     std::vector <Vec2f> intersectionPoints;
     int k = 0;
     for (int i = 0; i < clusteredLines.size(); i++){
@@ -542,15 +557,34 @@ std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputI
                 temp[0] = xInt;
                 temp[1] = yInt;
                 intersectionPoints.push_back(temp);
-                std::cout << "\t [" << xInt << ",\t " << yInt << "\t]\n";
 
                 // and plot
-//                circle(inputImage, Point(xInt, yInt), 5, Scalar(255,0,0), 2, 8);
+                if(cornersButtonState_){circle(plotableImage, Point(xInt, yInt), 5, Scalar(255,0,0), 2, 8);}
             }
         }
     }
 
-    return intersectionPoints;
+    // if found 4 corners, put in order clockwise around centroid
+    std::vector<Vec2f> orderedPoints;
+    if (intersectionPoints.size() == 4) {
+        orderedPoints = putPointsInOrder(intersectionPoints);
+
+        // if button turned on, draw polygon
+        if(cornersButtonState_){
+            std::cout << "\t ordered intersection points:\n";
+
+            for (int i = 0; i < orderedPoints.size()-1; i++){
+                std::cout << "\t [" << orderedPoints[i][0] << ",\t " << orderedPoints[i][1] << "\t]\n";
+                line(plotableImage, Point(round(orderedPoints[i][0]), round(orderedPoints[i][1])), Point(round(orderedPoints[i+1][0]), round(orderedPoints[i+1][1])), Scalar(255,255,0), 2, 8);
+            }
+            line(plotableImage, Point(round(orderedPoints[0][0]), round(orderedPoints[0][1])), Point(round(orderedPoints[intersectionPoints.size()-1][0]), round(orderedPoints[intersectionPoints.size()-1][1])), Scalar(255,255,0), 2, 8); // closing line
+            std::cout << "\t [" << orderedPoints[3][0] << ",\t " << orderedPoints[3][1] << "\t]\n";
+
+            imshow("corners", plotableImage);
+        }
+    }
+
+    return orderedPoints;
 }
 
 
