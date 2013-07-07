@@ -50,7 +50,6 @@ int main (){
     // setup main window
     namedWindow("videoWindow", CV_WINDOW_AUTOSIZE);   // create a window
     moveWindow("videoWindow", 10, 10);                // move window to top left corner
-    namedWindow("temp", CV_WINDOW_AUTOSIZE);
 
     // setup buttons, initial state of all buttons is off
     createButton("show centroid and orientation",   callBackCentroidButton, NULL, CV_CHECKBOX, 0);
@@ -165,44 +164,16 @@ int main (){
 
         // ------- transform overlay down to myImage perspective and merge -------
         Mat perspectiveOverlay(myImage.rows, myImage.cols, CV_8UC4, Scalar(0,0,0,0)); // to store inverse warped overlay
-
-        if (loadFileSuccess){                                                       // if overlay was loaded orrectly
+        Mat output;
+        bool overlaySuccess = false;
+        if (loadFileSuccess){                                                       // if overlay was loaded correctly
             std::cout << "\ndoing transformation:\n";
             doReverseTransformation(overlayImage, warpMatrix, perspectiveOverlay);  // do reverse transform
+            output = doOverlay(myImage, perspectiveOverlay);                        // do overlay
 
-
-            // THIS OVERLAY TECHNIQUE IS SUPER NASTY. TRY TO CLEAN IT UP!!!!!!!
-
-            // threshold transformed image be alpha channel to see if alpha was really set
-            Mat threshTempOutput;
-            threshTempOutput.create(perspectiveOverlay.rows, perspectiveOverlay.cols, CV_8U); // force to be 8bit unsigned, single channel
-            Scalar lowerBound(0,   0,      0, 1.0); // RGB
-            Scalar upperBound(255, 255,    255, 1.0);
-            inRange(perspectiveOverlay, lowerBound, upperBound, threshTempOutput);
-            imshow("temp", threshTempOutput);
-
-            Mat saveOverlay;
-            perspectiveOverlay.copyTo(saveOverlay, threshTempOutput);
-
-            // convert myImage to 4 channel for display
-            // add in an alpha channel by splitting and rejoining
-            Mat myImage4chan;
-            Mat alphaChannel;
-            alphaChannel = Mat::ones(myImage.rows, myImage.cols, CV_8UC1); // create alpha channel with all ones
-            std::vector<Mat> arrayOfChannels;
-            split(myImage, arrayOfChannels); // split into array [B, G, R]
-            arrayOfChannels.push_back(alphaChannel); // add alpha to array
-            merge(arrayOfChannels, myImage4chan); // merge all channels in array
-
-            // crop save from Myimage
-            Mat notThreshTempOutput;
-            bitwise_not(threshTempOutput, notThreshTempOutput);// not threshold
-            Mat saveInput;
-            myImage4chan.copyTo(saveInput, notThreshTempOutput);
-
-            Mat finalOutput = saveOverlay + saveInput;
-            imshow("temp", finalOutput);
-
+            if (output.data){
+                overlaySuccess = true;
+            }
         }
 
         /** ----- general format -----------:
@@ -223,9 +194,8 @@ int main (){
 
         // ------- update display -------
         if(counter % displayPeriod == 0){
-            if(!displayFrame(myImage)){
-                std::cout << "===== ERROR: can't display frame\n";
-            }
+            if (overlaySuccess){displayFrame(output);}
+            else {displayFrame(myImage);}
         }
 
         // ------- handle main( ) timing and break out -------
@@ -244,9 +214,8 @@ int main (){
     // ====================== CLEANUP ==========================
     myVideoCapture.release();       // release the capture source
     destroyWindow("videoWindow");   // destroy the video window(s)
-    destroyWindow("temp");
 
-    int dummy;
+    int dummy;          // main needs to return int so...
     return dummy;
 }
 

@@ -136,3 +136,47 @@ Mat loadDisplayImage(std::string filename){
 
     return output;
 }
+
+
+/** =============================================================================
+    description: creates overlay of two images by cutting ROI pixels out of foreground and non-ROI pixels out of background and merging into single image
+    input: backgroundImage: Mat 3 channel, BGR
+            foregroundImage: Mat 4 channel (BGRA, with alpha defined)
+    output: outputImage, Mat 3 channel, BGR
+**/
+Mat doOverlay(Mat backgroundImage, Mat foregroundImage){
+    std::cout << "\ndo overlay:\n";
+    // THIS OVERLAY TECHNIQUE IS SUPER NASTY; READ CAREFULLY.
+
+    // threshold foreground to create mask of pixels with alpha = 1.0
+    Mat mask;                                                           // to store alpha mask
+    mask.create(foregroundImage.rows, foregroundImage.cols, CV_8U);     // force to be 8bit unsigned, single channel
+    Scalar lowerBound(0,   0,      0, 1.0);                             // set threshold values; all BGR; alpha = 1.0
+    Scalar upperBound(255, 255,    255, 1.0);
+    inRange(foregroundImage, lowerBound, upperBound, mask);             // get mask
+
+    // use mask to save ROI of foreground
+    Mat saveForegroundImage;                                // to store part of foreground to keep
+    foregroundImage.copyTo(saveForegroundImage, mask);      // get part to keep
+
+    // convert background to 4 channel (add in an alpha channel by splitting and rejoining)
+    Mat background4ChannelImage;
+    Mat alphaChannel;
+    alphaChannel = Mat::ones(backgroundImage.rows, backgroundImage.cols, CV_8UC1); // create alpha channel with all ones
+    std::vector<Mat> arrayOfChannels;                   // declare array to store channels
+    split(backgroundImage, arrayOfChannels);            // split into array [B, G, R]
+    arrayOfChannels.push_back(alphaChannel);            // add alpha to array
+    merge(arrayOfChannels, background4ChannelImage);    // merge all channels in array
+
+
+    // crop and save image from background
+    Mat inverseMask;                                // get pixels NOT in the mask, this will become the mask for background
+    bitwise_not(mask, inverseMask);                 // not mask
+    Mat saveBackgroundImage;                        // to store part of the background to save
+    background4ChannelImage.copyTo(saveBackgroundImage, inverseMask);   // get part of background in inverseMask
+
+
+    // combine saved background and saved foreground
+    Mat output = saveForegroundImage + saveBackgroundImage;
+    return output;
+}

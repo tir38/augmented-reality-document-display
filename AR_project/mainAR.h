@@ -71,6 +71,9 @@ std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints);
 
 Mat loadDisplayImage(std::string filename);
 
+Mat doOverlay(Mat backgroundImage, Mat foregroundImage);
+
+
 // GUI methods
 void callBackCentroidButton(int state, void* pointer);
 void callBackMaskButton(int state, void* pointer);
