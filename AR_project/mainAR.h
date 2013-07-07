@@ -58,9 +58,13 @@ extern bool cornersButtonState_;
 extern bool perspectiveButtonState_;
 extern bool inverseButtonState_;
 
+extern int intensityThresh_;
+extern int closingKernelSize_;
+extern int closingIterations_;
 extern int cannyThres1_;
 extern int cannyThresh2_;
 extern int houghThresh_;
+
 
 // helper methods
 Vec4f rhoTheta2XY(float rho, float theta);

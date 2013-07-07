@@ -19,10 +19,13 @@ bool cornersButtonState_    = false;
 bool perspectiveButtonState_= false;
 bool inverseButtonState_    = false;
 
-// starting threshold values
-int cannyThres1_    = 0;
-int cannyThresh2_   = 95;
-int houghThresh_    = 80;
+// starting tuning parameters/threshold values
+int intensityThresh_        = 180;
+int closingKernelSize_  = 3;
+int closingIterations_  = 9;
+int cannyThres1_        = 0;
+int cannyThresh2_       = 95;
+int houghThresh_        = 80;
 
 
 /** =============================================================================
@@ -52,14 +55,14 @@ int main (){
     moveWindow("videoWindow", 10, 10);                // move window to top left corner
 
     // setup buttons, initial state of all buttons is off
-    createButton("show centroid and orientation",   callBackCentroidButton, NULL, CV_CHECKBOX, 0);
-    createButton("show masked image",               callBackMaskButton,     NULL, CV_CHECKBOX, 0);
-    createButton("show Canny edges",                callBackCannyButton,    NULL, CV_CHECKBOX, 0);
-    createButton("show Hough lines",                callBackHoughButton,    NULL, CV_CHECKBOX, 0);
-    createButton("show clustered lines",            callBackClusterButton,  NULL, CV_CHECKBOX, 0);
-    createButton("show corners",                    callBackCornersButton,  NULL, CV_CHECKBOX, 0);
-    createButton("show perspective transformation", callBackPerspectiveButton, NULL, CV_CHECKBOX, 0);
-    createButton("show inverse perspective image", callBackInverseButton,   NULL, CV_CHECKBOX, 0);
+    createButton("centroid and orientation",   callBackCentroidButton, NULL, CV_CHECKBOX, 0);
+    createButton("masked image",               callBackMaskButton,     NULL, CV_CHECKBOX, 0);
+    createButton("Canny edges",                callBackCannyButton,    NULL, CV_CHECKBOX, 0);
+    createButton("Hough lines",                callBackHoughButton,    NULL, CV_CHECKBOX, 0);
+    createButton("clustered lines",            callBackClusterButton,  NULL, CV_CHECKBOX, 0);
+    createButton("corners",                    callBackCornersButton,  NULL, CV_CHECKBOX, 0);
+    createButton("perspective transformation", callBackPerspectiveButton, NULL, CV_CHECKBOX, 0);
+    createButton("inverse perspective image", callBackInverseButton,   NULL, CV_CHECKBOX, 0);
 
     // setup zBar reader
     ImageScanner myScanner;     //setup reader
@@ -257,17 +260,16 @@ Mat trackObject(Mat myImage){
     // do thresholding
     Mat thresholdImage;
     thresholdImage.create(myImage.rows, myImage.cols, CV_8U); // force to be 8bit unsigned, single channel
-    Scalar lowerBound(0,   0,      180); // hue, saturation, intensity
+    Scalar lowerBound(0,   0,      intensityThresh_); // hue, saturation, intensity
     Scalar upperBound(255, 255,    255);
     inRange(hsvImage, lowerBound, upperBound, thresholdImage);
 
     // do closing; I need to do closing to remove any text on page
     Mat closedImage;
     closedImage.create(myImage.rows, myImage.cols, CV_8U);                      // force to be 8bit unsigned, single channel
-    Size size(4,4);                                                             // set kernel size, may need to increase for large QR codes
+    Size size(closingKernelSize_, closingKernelSize_);                                                             // set kernel size, may need to increase for large QR codes
     Mat closingKernel = getStructuringElement(MORPH_RECT, size, Point(-1,-1));  // create kernel
-    int closingIterations = 3;
-    morphologyEx(thresholdImage, closedImage, MORPH_CLOSE, closingKernel, Point(-1,-1), closingIterations, BORDER_CONSTANT, morphologyDefaultBorderValue()); // basically use default parameters
+    morphologyEx(thresholdImage, closedImage, MORPH_CLOSE, closingKernel, Point(-1,-1), closingIterations_, BORDER_CONSTANT, morphologyDefaultBorderValue()); // basically use default parameters
 
     // compute centroid and blob orientation and draw
     Mat centroidImage = computeCentroidAndOrientation(closedImage);     // compute centroid and orientation

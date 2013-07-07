@@ -30,6 +30,13 @@ void callBackMaskButton(int state, void* pointer){
         maskButtonState_ = true;
         namedWindow("masked image", CV_WINDOW_AUTOSIZE);
         moveWindow("masked image", 200, 100);
+
+        intensityThresh_ = 180;
+        closingKernelSize_ = 3;
+        closingIterations_ = 9;
+        createTrackbar("intensity thresh", "masked image", &intensityThresh_, 255);
+        createTrackbar("kernel sz", "masked image", &closingKernelSize_, 10);
+        createTrackbar("iter num", "masked image", &closingIterations_, 20);
     }
     std::cout << "maskButtonState_ = " << maskButtonState_ << "\n";
 }
