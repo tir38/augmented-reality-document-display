@@ -10,12 +10,12 @@ To Do (ideas):
 1.  [ ] consider detecting all cameras and picking the "right" one:
         http://stackoverflow.com/questions/9645784/opencv-counting-cameras
 2.  [ ] setup coroutines or task scheduler so that I can run multiple tasks simultaneously at different frequencies
-3.  [ ] make myDeviceID a global variable
+3.  [ ] make	 a global variable
 4.  [X] use erosion/dilation to remove any text on page when doing blob tracking
 5.  [ ] Read more about Hough Lines: http://homepages.inf.ed.ac.uk/rbf/HIPR2/hough.htm
 6.  [ ] Read Hu papers
 7.  [ ] Replace Hough Transform with cvFitLine: http://stackoverflow.com/questions/14184147/detect-lines-opencv-in-object
-8.  [ ] move all tuning parameters into global
+8.  [X] move all tuning parameters into global
 9.  [X] for submethods that return Mat, figure out how to determine if submethod fails (i.e. if Mat == NULL ??)
 10. [ ] Canny + Hough(80) + kMeans(4) is working pretty well for line detection.
         However, consider making robust by comparing lines w/ corner detection.
@@ -27,3 +27,12 @@ Notes:
 1. Note about timing:
     The timing of different methods is a bit wonky. Each method has its own "frequency" which is how often that method
     is called. main() is running at 100 Hz. So a method with a frequency of 10 Hz would run every 100/10 = 10 cycles.
+
+2. Note about corner detection:
+	I merge two methods to get corners:
+	1. the "builtin" (as I call it) method of using cv::goodFeaturesToTrack();
+	2. "my" method of Canny Edges -> Hough Lines -> k-means clustering of lines into 4 bins -> intersection of lines = corners
+
+	I then take these 8 points and do k-means on them to cluster them into 4 groups. Currently this is making things worse than
+	just using "my" method as I originally was. I expected it to smooth things out but it just made the corner detection more jumpy.
+	So for now I just pass the corners from "my" method on to orderPoints -> do transformation -> etc.

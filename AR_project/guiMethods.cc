@@ -104,17 +104,17 @@ void callBackClusterButton(int state, void* pointer){
 
 /**
 **/
-void callBackCornersButton(int state, void* pointer){
+void callBackIntersectionButton(int state, void* pointer){
     if (state == 0){
-        cornersButtonState_ = false;
-        destroyWindow("corners");
+        intersectionButtonState_ = false;
+        destroyWindow("intersections");
     }
     else if (state == 1){
-        cornersButtonState_ = true;
-        namedWindow("corners", CV_WINDOW_AUTOSIZE);
-        moveWindow("corners", 600,100);
+        intersectionButtonState_ = true;
+        namedWindow("intersections", CV_WINDOW_AUTOSIZE);
+        moveWindow("intersections", 600,100);
     }
-    std::cout << "cornersButtonState_ = " << cornersButtonState_ << "\n";
+    std::cout << "cornersButtonState_ = " << intersectionButtonState_ << "\n";
 }
 
 /**
@@ -146,4 +146,45 @@ void callBackInverseButton(int state, void* pointer){
         moveWindow("inverse", 600,100);
     }
     std::cout << "inverseButtonState_ = " << inverseButtonState_ << "\n";
+}
+
+
+void callBackBuiltInButton(int state, void* pointer){
+    if (state == 0){
+        builtInButtonState_ = false;
+        destroyWindow("builtin");
+    }
+    else if (state == 1){
+        builtInButtonState_ = true;
+        namedWindow("builtin", CV_WINDOW_AUTOSIZE);
+        moveWindow("builtin", 600,100);
+    }
+    std::cout << "builtInButtonState_ = " << builtInButtonState_ << "\n";
+}
+
+
+void callBackCornersButton(int state, void* pointer){
+    if (state == 0){
+        cornersButtonState_ = false;
+        destroyWindow("corners");
+    }
+    else if (state == 1){
+        cornersButtonState_ = true;
+        namedWindow("corners", CV_WINDOW_AUTOSIZE);
+        moveWindow("corners", 600,100);
+    }
+    std::cout << "cornersButtonState_ = " << cornersButtonState_ << "\n";
+}
+
+void callBackOrderButton(int state, void* pointer){
+    if (state == 0){
+        orderButtonState_ = false;
+        destroyWindow("order");
+    }
+    else if (state == 1){
+        orderButtonState_ = true;
+        namedWindow("order", CV_WINDOW_AUTOSIZE);
+        moveWindow("order", 600,100);
+    }
+    std::cout << "orderButtonState_ = " << orderButtonState_ << "\n";
 }

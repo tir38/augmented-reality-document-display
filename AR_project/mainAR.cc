@@ -3,21 +3,23 @@
 # include <stdio.h>     // for basic cout
 # include "math.h"      // for arctan
 # include <algorithm>   // for sort
-//# include <Magick++.h>   // for zbar: QR code scanning
 # include <zbar.h>       // for zbar
 
 using namespace cv;
 using namespace zbar;
 
 // starting button states
-bool centroidButtonState_   = false;
-bool maskButtonState_       = false;
-bool cannyButtonState_      = false;
-bool houghButtonState_      = false;
-bool clusterButtonState_    = false;
-bool cornersButtonState_    = false;
-bool perspectiveButtonState_= false;
-bool inverseButtonState_    = false;
+bool centroidButtonState_       = false;
+bool maskButtonState_           = false;
+bool cannyButtonState_          = false;
+bool houghButtonState_          = false;
+bool clusterButtonState_        = false;
+bool intersectionButtonState_   = false;
+bool builtInButtonState_        = false;
+bool cornersButtonState_        = false;
+bool perspectiveButtonState_    = false;
+bool inverseButtonState_        = false;
+bool orderButtonState_          = false;
 
 // starting tuning parameters/threshold values
 int intensityThresh_    = 180;  // pixel value for intensity thresholding of HSV image
@@ -29,7 +31,6 @@ int houghThresh_        = 100;  // Hough line threshold
 int attempts_           = 6;    // k-means attempts
 int maxIterations_      = 100;  // k-means max iterations
 int epsilon_            = 2;    // k-means epsilon
-
 
 /** =============================================================================
     description: main program
@@ -58,14 +59,17 @@ int main (){
     moveWindow("videoWindow", 10, 10);                // move window to top left corner
 
     // setup buttons, initial state of all buttons is off
-    createButton("centroid and orientation",   callBackCentroidButton, NULL, CV_CHECKBOX, 0);
-    createButton("masked image",               callBackMaskButton,     NULL, CV_CHECKBOX, 0);
-    createButton("Canny edges",                callBackCannyButton,    NULL, CV_CHECKBOX, 0);
-    createButton("Hough lines",                callBackHoughButton,    NULL, CV_CHECKBOX, 0);
-    createButton("clustered lines",            callBackClusterButton,  NULL, CV_CHECKBOX, 0);
-    createButton("corners",                    callBackCornersButton,  NULL, CV_CHECKBOX, 0);
-    createButton("perspective transformation", callBackPerspectiveButton, NULL, CV_CHECKBOX, 0);
-    createButton("inverse perspective image", callBackInverseButton,   NULL, CV_CHECKBOX, 0);
+    createButton("centroid and orientation",    callBackCentroidButton,     NULL, CV_CHECKBOX, 0);
+    createButton("masked image",                callBackMaskButton,         NULL, CV_CHECKBOX, 0);
+    createButton("Canny edges",                 callBackCannyButton,        NULL, CV_CHECKBOX, 0);
+    createButton("Hough lines",                 callBackHoughButton,        NULL, CV_CHECKBOX, 0);
+    createButton("clustered lines",             callBackClusterButton,      NULL, CV_CHECKBOX, 0);
+    createButton("intersections",               callBackIntersectionButton, NULL, CV_CHECKBOX, 0);
+    createButton("built-in",                    callBackBuiltInButton,      NULL, CV_CHECKBOX, 0);
+    createButton("corners",                     callBackCornersButton,      NULL, CV_CHECKBOX, 0);
+    createButton("ordered corners",             callBackOrderButton,        NULL, CV_CHECKBOX, 0);
+    createButton("perspective transformation",  callBackPerspectiveButton,  NULL, CV_CHECKBOX, 0);
+    createButton("inverse perspective image",   callBackInverseButton,      NULL, CV_CHECKBOX, 0);
 
     // setup zBar reader
     ImageScanner myScanner;     //setup reader
@@ -82,11 +86,12 @@ int main (){
 
         // ------- track object -------
         bool trackSuccess = false;
-        Mat maskedImage; // setup masked image
+        Mat maskedImage;    // to store masked input image
+        Mat trackedImage;   // to store intensity mask
         if(counter % trackPeriod == 0){
             std::cout << "===================\n";
-            std::cout << "\ndo tracking:\n"; // do tracking
-            Mat trackedImage = trackObject(myImage);            // track image
+            std::cout << "\ndo tracking\n"; // do tracking
+            trackedImage = trackObject(myImage);            // track image
             maskedImage = createMask(myImage.clone(), trackedImage);    // create mask from tracked image and copy of myImage
 
             // confirm successful tracking and masking
@@ -121,12 +126,42 @@ int main (){
 
         // ------- do corner estimation from lines -------
         bool intersectionSuccess = false;
-        std::vector<Vec2f> orderedPoints;
+        std::vector<Point2f> intersectionPoints;
         if (clusterSuccess){
-            orderedPoints = computeCorners(clusteredLines, myImage); // find all intersection points
+            intersectionPoints = computeCornersFromLines(clusteredLines, myImage); // find all intersection points
+
+            if (intersectionPoints.size() == 4){
+                intersectionSuccess = true; // update success handle
+            }
+        }
+
+        // ------ do corner estimation from built-in method ------
+        bool cornerSuccess = false;
+        std::vector<Point2f> corners;
+        if(trackSuccess){
+            corners = builtInCornerDetection(trackedImage);
+
+            if (corners.size() > 0){
+                cornerSuccess = true;
+            }
+        }
+
+        // ----- merge two sets of corners -------
+        bool mergeCornersSuccess = false;
+        std::vector<Point2f> allCorners;
+        if (cornerSuccess && intersectionSuccess){ // if both corner methods are successful
+             allCorners = mergeCorners(corners,intersectionPoints, myImage);
+        }
+
+        // ----- put points in order
+        // if found 4 corners, put in order clockwise around centroid
+        std::vector<Point2f> orderedPoints;
+        bool orderPointsSuccess = false;
+        if (intersectionSuccess) {
+            orderedPoints = putPointsInOrder(intersectionPoints, myImage);
 
             if (orderedPoints.size() == 4){
-                intersectionSuccess = true; // update success handle
+                orderPointsSuccess = true;
             }
         }
 
@@ -135,7 +170,7 @@ int main (){
         bool transformationSuccess = false;
         Mat correctedImage;
         Mat warpMatrix (3, 4, CV_32FC1);
-        if (intersectionSuccess){
+        if (orderPointsSuccess){
              correctedImage = doTransformation(orderedPoints, myImage, warpMatrix);
 
              // confirm successful transformation
@@ -148,7 +183,6 @@ int main (){
         std::string filename;                                           // to store filename from QR code
         bool readQRcodeSuccess = false;
         if (transformationSuccess){                                     // if transform succeeded
-            std::cout << "\ndoing readQRCode:\n";
             filename = readQRCode(correctedImage, myScanner);
 
             // confirm succesful QR read
@@ -173,7 +207,6 @@ int main (){
         Mat output;
         bool overlaySuccess = false;
         if (loadFileSuccess){                                                       // if overlay was loaded correctly
-            std::cout << "\ndoing transformation:\n";
             doReverseTransformation(overlayImage, warpMatrix, perspectiveOverlay);  // do reverse transform
             output = doOverlay(myImage, perspectiveOverlay);                        // do overlay
 
@@ -252,7 +285,7 @@ bool displayFrame(Mat image){
 /** =============================================================================
     description: tracks white blob in image and updates display image
     input: Mat myImage (in RGB space)
-    returns: Mat image with centroid (in binary space)
+    returns: Mat closedImage, single channel (in binary space)
 **/
 Mat trackObject(Mat myImage){
     // create copy of myImage and convert to HSV space
@@ -464,7 +497,7 @@ std::vector< Vec2f> lineDetection(Mat inputImage, int cannyThresh1, int cannyThr
             do cause slow processing.
 **/
 std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat inputImage){
-    std::cout << "\ndo k-means clustering:\n";
+    std::cout << "\ndo k-means clustering of lines\n";
 
     // convert vector<Vec2f> to Mat
     Mat dataPoints(lines.size(), 2, CV_32F);
@@ -526,10 +559,10 @@ std::vector<Vec2f> clusterLines(std::vector<Vec2f> lines, Mat inputImage){
 /** =============================================================================
     description: tries to find corners by computing intersections of lines
     input: vector of lines in rho/theta format
-    returns: void
+    returns: vector of Point2f
 **/
-std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputImage){
-    std::cout << "\ncomputing corners:\n";
+std::vector <Point2f> computeCornersFromLines(std::vector<Vec2f> clusteredLines, Mat inputImage){
+    std::cout << "\ncompute corners from lines\n";
     Mat plotableImage = inputImage.clone();    // strictly for visualizing
 
     // convert all lines from rho/theta into slope intercept
@@ -541,7 +574,7 @@ std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputI
     }
 
     // compute intersection point of each line with each other line
-    std::vector <Vec2f> intersectionPoints;
+    std::vector <Point2f> intersectionPoints;
     int k = 0;
     for (int i = 0; i < clusteredLines.size(); i++){
         for (int j = i+1; j < clusteredLines.size(); j++){
@@ -555,37 +588,27 @@ std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputI
 
             if ((xInt >= 0) && (xInt <= 640) && (yInt >= 0) && (yInt <= 480)){ // if intersection is inside frame
                 // add to list of intersection points
-                Vec2f temp;
-                temp[0] = xInt;
-                temp[1] = yInt;
+                Point2f temp;
+                temp.x = xInt;
+                temp.y = yInt;
                 intersectionPoints.push_back(temp);
 
                 // and plot
-                if(cornersButtonState_){circle(plotableImage, Point(xInt, yInt), 5, Scalar(255,0,0), 2, 8);}
+                if(intersectionButtonState_){circle(plotableImage, Point(xInt, yInt), 5, Scalar(255,0,0), 2, 8);}
             }
         }
     }
 
-    // if found 4 corners, put in order clockwise around centroid
-    std::vector<Vec2f> orderedPoints;
-    if (intersectionPoints.size() == 4) {
-        orderedPoints = putPointsInOrder(intersectionPoints);
 
-        // if button turned on, draw polygon
-        if(cornersButtonState_){
-            std::cout << "\t ordered intersection points:\n";
-
-            for (int i = 0; i < orderedPoints.size()-1; i++){
-                std::cout << "\t [" << orderedPoints[i][0] << ",\t " << orderedPoints[i][1] << "\t]\n";
-                line(plotableImage, Point(round(orderedPoints[i][0]), round(orderedPoints[i][1])), Point(round(orderedPoints[i+1][0]), round(orderedPoints[i+1][1])), Scalar(255,255,0), 2, 8);
-            }
-            line(plotableImage, Point(round(orderedPoints[0][0]), round(orderedPoints[0][1])), Point(round(orderedPoints[intersectionPoints.size()-1][0]), round(orderedPoints[intersectionPoints.size()-1][1])), Scalar(255,255,0), 2, 8); // closing line
-            std::cout << "\t [" << orderedPoints[3][0] << ",\t " << orderedPoints[3][1] << "\t]\n";
-
-            imshow("corners", plotableImage);
+    // if button turned on display and output to terminal
+    if(intersectionButtonState_){
+        std::cout << "\t intersection points:\n";
+        for (int i = 0; i < intersectionPoints.size(); i++){
+            std::cout << "\t [" << intersectionPoints[i].x << ",\t " << intersectionPoints[i].y<< "\t]\n";
         }
+        imshow("intersections", plotableImage);
     }
-    return orderedPoints;
+    return intersectionPoints;
 }
 
 
@@ -593,11 +616,11 @@ std::vector <Vec2f> computeCorners(std::vector<Vec2f> clusteredLines, Mat inputI
     description: performs perspective transformation of caputured image to rectangle
             I am doing an perspective projection FROM "distorted image" (aka trapezoid shape)
             TO "corrected image" (aka rectangluar 8.5 x 11 image)
-    input: vector of Vec2f points in distorted image and distorted image
+    input: vector of Point2f points in distorted image and distorted image
     returns: Mat of corrected image
   **/
-Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage, Mat& warpMatrix){
-    std::cout << "\nperforming perspective transformation:\n";
+Mat doTransformation(std::vector<Point2f> inputPoints, Mat inputImage, Mat& warpMatrix){
+    std::cout << "\ndo perspective transformation\n";
 
     // declare and initialize variables
     int numPoints = inputPoints.size();
@@ -605,9 +628,9 @@ Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage, Mat& warpMa
     Point2f distortedPoints[numPoints];
     Point2f correctedPoints[numPoints];
 
-    // put input points from vector<Vec2f> into array of Point2f
+    // put input points from vector of Point2f into array of Point2f
     for (int i = 0; i < numPoints; i++){
-        distortedPoints[i] = Point2f(inputPoints[i][0], inputPoints[i][1]);
+        distortedPoints[i] = Point2f(inputPoints[i].x, inputPoints[i].y);
     }
 
     // set output points ; there is a lot going wrong here.
@@ -643,7 +666,7 @@ Mat doTransformation(std::vector<Vec2f> inputPoints, Mat inputImage, Mat& warpMa
 code for this was pulled from https://github.com/rportugal/opencv-zbar
 **/
 std::string  readQRCode(Mat inputImage, ImageScanner& myScanner){
-    std::cout << "\nread QR codes:\n";
+    std::cout << "\nread QR codes\n";
 
     Mat myGrayscaleImage;
     cvtColor(inputImage, myGrayscaleImage, CV_BGR2GRAY);
@@ -675,7 +698,7 @@ std::string  readQRCode(Mat inputImage, ImageScanner& myScanner){
 
 **/
 void doReverseTransformation(Mat overlayImage, Mat warpMatrix, Mat& perspectiveOverlay){
-    std::cout << "\ndo reverse transformation:\n";
+    std::cout << "\ndo reverse transformation\n";
 
     warpPerspective(overlayImage,
                     perspectiveOverlay,
@@ -685,4 +708,99 @@ void doReverseTransformation(Mat overlayImage, Mat warpMatrix, Mat& perspectiveO
                     BORDER_TRANSPARENT);
 
     if(inverseButtonState_){imshow("inverse", perspectiveOverlay);} // if button pressed, display
+}
+
+/** =============================================================================
+    description: wrapper for goodFeaturesToTrack() to use built-in Harris Corner Detector
+    input: inputImage, Mat, single channel, binary image
+    output: vector of Point2f
+**/
+std::vector<Point2f> builtInCornerDetection(Mat inputImage){
+    std::cout << "\ncompute corners fron built-in method\n";
+
+    std::vector<Point2f> corners;
+    int maxCorners = 4;
+    double qualityLevel = 0.25;
+    double minDistance =  100;          // minimum euclidian distance between corners
+    int blockSize = 3;
+    bool useHarrisDetector = true;
+    double k = 0.04;                    // free parameter of the Harris detector
+
+    goodFeaturesToTrack(inputImage, corners, maxCorners, qualityLevel, minDistance, noArray(), blockSize, useHarrisDetector, k);
+
+    // do plotting
+    if (builtInButtonState_){
+        Mat plottableImage = inputImage.clone();
+        std::cout << "\t outputCorners size = " << corners.size() << " corners\n";
+        for (int i = 0; i < corners.size(); i++){
+            std::cout << "\t [" << corners[i].x << ", " << corners[i].y << "]\n";
+            circle(plottableImage, corners[i], 5, Scalar(128,0,0), 2, 8);
+        }
+        imshow("builtin", plottableImage);
+    }
+
+    return corners;
+}
+
+/** =============================================================================
+    description: take two sets of corners and find matches
+    input:
+        set1:       std::vector<Point2f> size 4
+        set2:       std::vector<Point2f> size 4
+        inputImage: Mat just for dipslay
+    output:
+        output:     std::vector<Point2f> size 4
+**/
+std::vector<Point2f> mergeCorners(std::vector<Point2f> set1, std::vector<Point2f> set2, Mat inputImage){
+    std::cout << "\ndo merge corners\n";
+
+    std::cout << "\t set1.size = " << set1.size() << ", set2.size = " << set2.size() << "\n";
+
+    set1.insert( set1.end(), set2.begin(), set2.end() ); // conbine all corners into one vector
+
+    // do k-means on this set
+    // convert vector<Point2f> to Mat
+    Mat dataPoints(set1.size(), 2, CV_32F);
+    for (int i = 0; i < set1.size(); i++){ // iterate through points
+        dataPoints.at<float>(i,0) = set1[i].x;
+        dataPoints.at<float>(i,1) = set1[i].y;
+    }
+
+    // force points lines into four bins
+    int K = 4;                  // cluster into K bins
+    if (set1.size() < K){      // if number of points is less than number of attempted clusters...
+        K = set1.size();       // ... reduce number of clusters
+    }
+    // output Mat's
+    Mat bestLabels;
+    Mat centers;
+    int maxIterations = 100;
+    double epsilon = 2.0;
+    int attempts = 10;
+
+    // do kMeans
+    kmeans(dataPoints, 4, bestLabels, TermCriteria(CV_TERMCRIT_ITER, maxIterations, epsilon), attempts , KMEANS_RANDOM_CENTERS, centers );
+
+    // transfer points to vector<Point2f>
+    std::vector<Point2f> output;
+    for (int i = 0; i < K; i++){
+        Point2f temp;
+        temp.x = round(centers.at<float>(i,0));
+        temp.y = round(centers.at<float>(i,1));
+        output.push_back(temp);
+    }
+
+    // plot
+    if(cornersButtonState_){
+        std::cout << "\t clustered points :\n"; // print to terminal
+
+        Mat plotableImage = inputImage.clone();
+        for (int i = 0; i < K; i++){
+            circle(plotableImage, output[i], 5, Scalar(0,0,255), 2, 8); // add circle to display
+            std::cout << "\t [" << output[i].x << ", " << output[i].y << "]\n"; //print to terminal
+        }
+
+        imshow("corners", plotableImage);} // if button pressed, display image
+
+    return output;
 }

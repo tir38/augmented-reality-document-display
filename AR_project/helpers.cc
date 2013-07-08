@@ -4,7 +4,6 @@
 # include <stdio.h>     // for basic cout
 # include "math.h"      // for arctan
 # include <algorithm>   // for sort
-//# include <Magick++.h>   // for zbar: QR code scanning
 # include <zbar.h>       // for zbar
 
 using namespace cv;
@@ -56,26 +55,26 @@ Vec2f rhoTheta2SlopeIntercept(float rho, float theta){
 
 /** =============================================================================
     description: puts polygon points in order clockwise
-    input: vector of Vec2f points
-    returns: void
+    input: inputPoints: vector<Point2f> points in random order
+    returns: outputPoints: vector<Point2f> points in order
   **/
-std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints){
+std::vector<Point2f> putPointsInOrder(std::vector<Point2f> inputPoints, Mat inputImage){
 
     std::vector< std::vector< float> > tempPoints;
 
     // compute centroid of all points
-    Vec2f centroid;
-    for (int i = 0; i < intersectionPoints.size(); i++){
-        centroid[0] = centroid[0] + intersectionPoints[i][0];
-        centroid[1] = centroid[1] + intersectionPoints[i][1];
+    Point2f centroid;
+    for (int i = 0; i < inputPoints.size(); i++){
+        centroid.x = centroid.x + inputPoints[i].x;
+        centroid.y = centroid.y + inputPoints[i].y;
     }
-    centroid[0] = centroid[0] / intersectionPoints.size();
-    centroid[1] = centroid[1] / intersectionPoints.size();
+    centroid.x = centroid.x / inputPoints.size();
+    centroid.y = centroid.y / inputPoints.size();
 
     // compute the heading from centroid to each point; order points by heading
-    for (int i = 0; i < intersectionPoints.size(); i++){
-        float heading = atan((intersectionPoints[i][1] - centroid[1]) / (intersectionPoints[i][0] - centroid[0]));
-        if (intersectionPoints[i][0] - centroid[0] < 0){
+    for (int i = 0; i < inputPoints.size(); i++){
+        float heading = atan((inputPoints[i].y - centroid.y) / (inputPoints[i].x - centroid.x));
+        if (inputPoints[i].x - centroid.x < 0){
             heading = heading* (-1);
             if (heading > 0){
                 heading = heading+(M_PI/2);
@@ -88,7 +87,7 @@ std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints){
         // put heading in a new temp vector along with intersection point x,y
         // by putting heading in first column, I can easily sort later
         std::vector<float> tempV;
-        float tempA[] = {heading, intersectionPoints[i][0], intersectionPoints[i][1]};
+        float tempA[] = {heading, inputPoints[i].x, inputPoints[i].y};
         tempV.assign (tempA,tempA+3);   // assigning from array.
         tempPoints.push_back(tempV); // put
     }
@@ -97,15 +96,27 @@ std::vector<Vec2f> putPointsInOrder(std::vector<Vec2f> intersectionPoints){
     std::sort(tempPoints.begin(), tempPoints.end());
 
     // overwrite intersectionPoints with ordered points
-    intersectionPoints.clear();
+    std::vector<Point2f> outputPoints;
     for (int i = 0; i < tempPoints.size(); i++){
-        Vec2f orderedPoint;
-        orderedPoint[0] = tempPoints[i][1];
-        orderedPoint[1] = tempPoints[i][2];
-        intersectionPoints.push_back(orderedPoint);
+        Point2f orderedPoint;
+        orderedPoint.x = tempPoints[i][1];
+        orderedPoint.y = tempPoints[i][2];
+        outputPoints.push_back(orderedPoint);
     }
 
-    return intersectionPoints;
+    // if button turned on, draw polygon
+    if(orderButtonState_){
+        Mat plotableImage = inputImage.clone();
+        for (int i = 0; i < outputPoints.size()-1; i++){
+            line(plotableImage, Point(round(outputPoints[i].x), round(outputPoints[i].y)), Point(round(outputPoints[i+1].x), round(outputPoints[i+1].y)), Scalar(255,255,0), 2, 8);
+        }
+        line(plotableImage, Point(round(outputPoints[0].x), round(outputPoints[0].y)), Point(round(outputPoints[inputPoints.size()-1].x), round(outputPoints[inputPoints.size()-1].y)), Scalar(255,255,0), 2, 8); // closing line
+
+        imshow("order", plotableImage);
+    }
+
+
+    return outputPoints;
 }
 
 
@@ -145,7 +156,7 @@ Mat loadDisplayImage(std::string filename){
     output: outputImage, Mat 3 channel, BGR
 **/
 Mat doOverlay(Mat backgroundImage, Mat foregroundImage){
-    std::cout << "\ndo overlay:\n";
+    std::cout << "\ndo overlay\n";
     // THIS OVERLAY TECHNIQUE IS SUPER NASTY; READ CAREFULLY.
 
     // threshold foreground to create mask of pixels with alpha = 1.0
@@ -180,3 +191,7 @@ Mat doOverlay(Mat backgroundImage, Mat foregroundImage){
     Mat output = saveForegroundImage + saveBackgroundImage;
     return output;
 }
+
+
+
+
