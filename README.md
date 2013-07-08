@@ -34,8 +34,8 @@ $$ openCV doesn't do overlay very well. my overlay method is a roundabout method
 
 See More
 ----
-[Vimeo]()
-[tir38.com]()
+[Vimeo](https://vimeo.com/69867236)
+
 
 Required Libraries
 ----
