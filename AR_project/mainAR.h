@@ -14,7 +14,6 @@
 #include "opencv2/opencv.hpp"
 #include <zbar.h>       // for zbar
 
-
 using namespace cv;
 using namespace zbar;
 
@@ -73,7 +72,6 @@ extern int houghThresh_;
 extern int attempts_;
 extern int maxIterations_;
 extern int epsilon_;
-
 
 // helper methods
 Vec4f rhoTheta2XY(float rho, float theta);

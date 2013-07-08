@@ -14,7 +14,7 @@ void callBackCentroidButton(int state, void* pointer){
     else if (state == 1){
         centroidButtonState_ = true;
         namedWindow("centroid image", CV_WINDOW_AUTOSIZE);
-        moveWindow("centroid image", 100, 100);
+        moveWindow("centroid image", 700, 100);
     }
     std::cout << "centroidButtonState_ = " << centroidButtonState_ << "\n";
 }
@@ -29,7 +29,7 @@ void callBackMaskButton(int state, void* pointer){
     else if (state == 1){
         maskButtonState_ = true;
         namedWindow("masked image", CV_WINDOW_AUTOSIZE);
-        moveWindow("masked image", 200, 100);
+        moveWindow("masked image", 700, 100);
 
         intensityThresh_ = 180;
         closingKernelSize_ = 3;
@@ -51,7 +51,7 @@ void callBackCannyButton(int state, void* pointer){
     else if (state == 1){
         cannyButtonState_ = true;
         namedWindow("canny edge detection", CV_WINDOW_AUTOSIZE);
-        moveWindow("canny edge detection", 300,100);
+        moveWindow("canny edge detection", 700, 100);
 
         cannyThres1_ = 0;
         cannyThresh2_ = 95;
@@ -72,7 +72,7 @@ void callBackHoughButton(int state, void* pointer){
     else if (state == 1){
         houghButtonState_ = true;
         namedWindow("hough lines", CV_WINDOW_AUTOSIZE);
-        moveWindow("hough lines", 400,100);
+        moveWindow("hough lines", 700, 100);
 
         houghThresh_ = 100;
         createTrackbar("Hough threshold", "hough lines", &houghThresh_, 100);
@@ -90,7 +90,7 @@ void callBackClusterButton(int state, void* pointer){
     else if (state == 1){
         clusterButtonState_ = true;
         namedWindow("clustered lines", CV_WINDOW_AUTOSIZE);
-        moveWindow("clustered lines", 500,100);
+        moveWindow("clustered lines", 700, 100);
 
         attempts_       = 6;
         maxIterations_  = 100;
@@ -112,7 +112,7 @@ void callBackIntersectionButton(int state, void* pointer){
     else if (state == 1){
         intersectionButtonState_ = true;
         namedWindow("intersections", CV_WINDOW_AUTOSIZE);
-        moveWindow("intersections", 600,100);
+        moveWindow("intersections", 700, 100);
     }
     std::cout << "cornersButtonState_ = " << intersectionButtonState_ << "\n";
 }
@@ -127,7 +127,7 @@ void callBackPerspectiveButton(int state, void* pointer){
     else if (state == 1){
         perspectiveButtonState_ = true;
         namedWindow("perspective", CV_WINDOW_AUTOSIZE);
-        moveWindow("perspective", 700,100);
+        moveWindow("perspective", 700, 100);
     }
     std::cout << "perspectiveButtonState_ = " << perspectiveButtonState_ << "\n";
 }
@@ -143,7 +143,7 @@ void callBackInverseButton(int state, void* pointer){
     else if (state == 1){
         inverseButtonState_ = true;
         namedWindow("inverse", CV_WINDOW_AUTOSIZE);
-        moveWindow("inverse", 600,100);
+        moveWindow("inverse", 700, 100);
     }
     std::cout << "inverseButtonState_ = " << inverseButtonState_ << "\n";
 }
@@ -157,7 +157,7 @@ void callBackBuiltInButton(int state, void* pointer){
     else if (state == 1){
         builtInButtonState_ = true;
         namedWindow("builtin", CV_WINDOW_AUTOSIZE);
-        moveWindow("builtin", 600,100);
+        moveWindow("builtin", 700, 100);
     }
     std::cout << "builtInButtonState_ = " << builtInButtonState_ << "\n";
 }
@@ -171,7 +171,7 @@ void callBackCornersButton(int state, void* pointer){
     else if (state == 1){
         cornersButtonState_ = true;
         namedWindow("corners", CV_WINDOW_AUTOSIZE);
-        moveWindow("corners", 600,100);
+        moveWindow("corners", 700, 100);
     }
     std::cout << "cornersButtonState_ = " << cornersButtonState_ << "\n";
 }
@@ -184,7 +184,7 @@ void callBackOrderButton(int state, void* pointer){
     else if (state == 1){
         orderButtonState_ = true;
         namedWindow("order", CV_WINDOW_AUTOSIZE);
-        moveWindow("order", 600,100);
+        moveWindow("order", 700, 100);
     }
     std::cout << "orderButtonState_ = " << orderButtonState_ << "\n";
 }

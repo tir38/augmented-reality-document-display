@@ -56,20 +56,20 @@ int main (){
 
     // setup main window
     namedWindow("videoWindow", CV_WINDOW_AUTOSIZE);   // create a window
-    moveWindow("videoWindow", 10, 10);                // move window to top left corner
+    moveWindow("videoWindow", 10, 100);                // move window to top left corner
 
     // setup buttons, initial state of all buttons is off
-    createButton("centroid and orientation",    callBackCentroidButton,     NULL, CV_CHECKBOX, 0);
-    createButton("masked image",                callBackMaskButton,         NULL, CV_CHECKBOX, 0);
-    createButton("Canny edges",                 callBackCannyButton,        NULL, CV_CHECKBOX, 0);
-    createButton("Hough lines",                 callBackHoughButton,        NULL, CV_CHECKBOX, 0);
-    createButton("clustered lines",             callBackClusterButton,      NULL, CV_CHECKBOX, 0);
-    createButton("intersections",               callBackIntersectionButton, NULL, CV_CHECKBOX, 0);
-    createButton("built-in",                    callBackBuiltInButton,      NULL, CV_CHECKBOX, 0);
-    createButton("corners",                     callBackCornersButton,      NULL, CV_CHECKBOX, 0);
-    createButton("ordered corners",             callBackOrderButton,        NULL, CV_CHECKBOX, 0);
-    createButton("perspective transformation",  callBackPerspectiveButton,  NULL, CV_CHECKBOX, 0);
-    createButton("inverse perspective image",   callBackInverseButton,      NULL, CV_CHECKBOX, 0);
+    createButton("centroid",            callBackCentroidButton,     NULL, CV_CHECKBOX, 0);
+    createButton("masked image",        callBackMaskButton,         NULL, CV_CHECKBOX, 0);
+    createButton("Canny edges",         callBackCannyButton,        NULL, CV_CHECKBOX, 0);
+    createButton("Hough lines",         callBackHoughButton,        NULL, CV_CHECKBOX, 0);
+    createButton("clustered lines",     callBackClusterButton,      NULL, CV_CHECKBOX, 0);
+    createButton("intersections",       callBackIntersectionButton, NULL, CV_CHECKBOX, 0);
+    createButton("built-in",            callBackBuiltInButton,      NULL, CV_CHECKBOX, 0);
+    createButton("corners",             callBackCornersButton,      NULL, CV_CHECKBOX, 0);
+    createButton("ordered corners",     callBackOrderButton,        NULL, CV_CHECKBOX, 0);
+    createButton("perspective",         callBackPerspectiveButton,  NULL, CV_CHECKBOX, 0);
+    createButton("inverse perspective", callBackInverseButton,      NULL, CV_CHECKBOX, 0);
 
     // setup zBar reader
     ImageScanner myScanner;     //setup reader
