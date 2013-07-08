@@ -32,8 +32,17 @@ Workflow
 
 $$ openCV doesn't do overlay very well. my overlay method is a roundabout method of cutting foreground from loaded image, cutting background from intial image, and then putting them together in an output image.
 
+See More
+----
+[Vimeo]()
+[tir38.com]()
+
 Required Libraries
 ----
 - [openCV 2.x](http://opencv.willowgarage.com/wiki/) (built with 2.4) 
 - [ZBar](http://zbar.sourceforge.net/)
 - [ImageMagick++](http://www.imagemagick.org/script/index.php) (just for zBar)    
+
+Status
+-----
+This was intially a project to learn about openCV (mission accomplished) and to build a fun augmented reality tool (mission mostly accomplished). I have a lot that I'd love to add to this project, but at the current state, I'm satisfied if I never have time to come back to this. Star this repo to keep up to date on any changes.
