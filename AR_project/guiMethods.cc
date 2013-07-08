@@ -31,9 +31,6 @@ void callBackMaskButton(int state, void* pointer){
         namedWindow("masked image", CV_WINDOW_AUTOSIZE);
         moveWindow("masked image", 700, 100);
 
-        intensityThresh_ = 180;
-        closingKernelSize_ = 3;
-        closingIterations_ = 9;
         createTrackbar("intensity thresh", "masked image", &intensityThresh_, 255);
         createTrackbar("kernel sz", "masked image", &closingKernelSize_, 10);
         createTrackbar("iter num", "masked image", &closingIterations_, 20);
@@ -53,8 +50,6 @@ void callBackCannyButton(int state, void* pointer){
         namedWindow("canny edge detection", CV_WINDOW_AUTOSIZE);
         moveWindow("canny edge detection", 700, 100);
 
-        cannyThres1_ = 0;
-        cannyThresh2_ = 95;
         createTrackbar("Canny Low", "canny edge detection", &cannyThres1_, 100);
         createTrackbar("Canny High", "canny edge detection", &cannyThresh2_, 100);
     }
@@ -74,7 +69,6 @@ void callBackHoughButton(int state, void* pointer){
         namedWindow("hough lines", CV_WINDOW_AUTOSIZE);
         moveWindow("hough lines", 700, 100);
 
-        houghThresh_ = 100;
         createTrackbar("Hough threshold", "hough lines", &houghThresh_, 100);
     }
     std::cout << "houghButtonState_ = " << houghButtonState_ << "\n";
@@ -92,9 +86,6 @@ void callBackClusterButton(int state, void* pointer){
         namedWindow("clustered lines", CV_WINDOW_AUTOSIZE);
         moveWindow("clustered lines", 700, 100);
 
-        attempts_       = 6;
-        maxIterations_  = 100;
-        epsilon_        = 2;
         createTrackbar("attempts", "clustered lines", &attempts_, 20);
         createTrackbar("max iterations", "clustered lines", &maxIterations_, 150);
         createTrackbar("epsilon", "clustered lines", &epsilon_, 10);
